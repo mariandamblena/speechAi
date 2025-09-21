@@ -1,0 +1,299 @@
+{
+  "name": "llamadaIndividual",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f9288c8e-c9b0-4676-896d-21b115874656",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generar fecha/hora actual en Chile (solo para interpretar fechas relativas en el agente)\nconst nowCL = new Date().toLocaleString('en-US', {\n  timeZone: 'America/Santiago',\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',\n  hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true\n}) + ' CLT';\n\n// Armar el body para Retell (todos los valores de dynamic variables deben ser STRINGS)\nreturn [\n  {\n    json: {\n      from_number: \"+17753707009\",                // tu número Retell válido para outbound\n      to_number: \"+5491136530246\",                // número del cliente (E.164)\n      agent_id: \"agent_9af386a14d75b856946d189bc2\",\n      retell_llm_dynamic_variables: {\n        // Identificación\n        nombre: \"Sebastian Giorgi\",\n        empresa: \"Natura&Co\",\n        RUT: \"12345678-9\",\n\n        // Deuda por cupones (no hay cuotas)\n        cupones: \"[12345678, 87654321]\",          // array serializado (string)\n        cantidad_cupones: \"2\",\n        monto_original: \"150000\",                 // suma de compras antes de ser deuda\n        monto_total: \"120000\",                    // suma de cupones adeudados (a pagar juntos)\n        cicloVenta: \"11/2025\",                    // número de catálogo/campaña\n\n        // Fechas en ISO 8601 (YYYY-MM-DD) para evitar ambigüedad día/mes\n        fecha_de_vencimiento: \"2025-08-15\",       // cuando se generó la deuda\n        fecha_limite: \"2025-09-27\",               // límite sin recargo\n        fecha_maxima: \"2025-09-29\",               // última fecha (pueden aplicar cargos)\n        fecha_pago_cliente: \"\",                   // la completará el agente con lo que confirme el cliente\n\n        // Contexto de hora local para interpretar “mañana/lunes”, etc.\n        \"current_time_America/Santiago\": nowCL\n      }\n    }\n  }\n];\n"
+      },
+      "id": "46b8f714-3baf-4b3e-9ee1-a1c14356cba5",
+      "name": "Code – Build JSON body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.retellai.com/v2/create-phone-call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer key_12dcb3a82daa9997fb7f287a7f60"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "1dbbb600-5eb2-4c8f-b2ca-d17df82e9cb8",
+      "name": "HTTP – Retell create-phone-call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        224,
+        -272
+      ],
+      "notesInFlow": true,
+      "notes": "Envía el body como JSON usando el output del nodo Code."
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json || {};\nconst callId =\n  r.call_id ||\n  r.data?.call_id ||\n  r.result?.call_id ||\n  r.id || '';\n\nif (!callId) {\n  throw new Error('No call_id in response: ' + JSON.stringify(r));\n}\n\n// Estos campos ya deberían estar en el body inicial o en la respuesta.\n// Usá $json, no $items(0,0), para no mezclar ramas.\nconst toNumber = r.to_number || '';\nconst customerId = r.metadata?.customer_id || '';\n\nreturn [{\n  json: {\n    call_id: callId,\n    to_number: toNumber,\n    customer_id: customerId\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        -272
+      ],
+      "id": "66aca06e-67af-4bf1-b3b9-c03be1f790b3",
+      "name": "Code",
+      "notesInFlow": true,
+      "notes": "Extract call_id"
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "id": "86de461a-43e4-4fa3-bee4-6f91ab3c0cae",
+      "name": "Wait 20s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        704,
+        -480
+      ],
+      "webhookId": "97c5798a-0f81-40a0-bc39-4e2f2336caa8"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.retellai.com/v2/get-call/{{$json.call_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer key_12dcb3a82daa9997fb7f287a7f60"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "e6f1b99b-9647-496b-880a-92b560302015",
+      "name": "HTTP – Retell get-call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        784,
+        -272
+      ],
+      "notesInFlow": true,
+      "retryOnFail": true,
+      "notes": "Trae estado, análisis y variables recolectadas"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6c49f3f4-9971-4a19-9d20-25c68e9e6f2b",
+              "leftValue": "={{ ['ended','error','not_connected'].includes($json.call_status) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        -224
+      ],
+      "id": "7be41c62-e0a3-42ef-86f7-92f46d41c480",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $json;\nreturn [{\n  json: {\n    call_id: c.call_id || '',\n    to_number: c.to_number || '',                    // viene en get-call o lo arrastraste\n    call_status: c.call_status || '',\n    disconnection_reason: c.disconnection_reason || '',\n    call_successful: c.call_analysis?.call_successful ?? null,\n    call_summary: c.call_analysis?.call_summary || '',\n    fecha_compromiso: c.collected_dynamic_variables?.fecha_pago_cliente || '',\n    monto_compromiso: c.collected_dynamic_variables?.monto_pago_cliente || '',\n    recording_url: c.recording_url || '',\n    public_log_url: c.public_log_url || '',\n    ts_saved: new Date().toISOString()\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        -320
+      ],
+      "id": "13cde619-c5a8-46fb-9b31-3533bb9ac44a",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1232,
+        0
+      ],
+      "id": "521e491c-470f-456d-9ae2-17f72183a5f8",
+      "name": "Wait",
+      "webhookId": "5986ba24-60f3-4bfb-a331-fcf7a255a296"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code – Build JSON body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code – Build JSON body": {
+      "main": [
+        [
+          {
+            "node": "HTTP – Retell create-phone-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP – Retell create-phone-call": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 20s": {
+      "main": [
+        [
+          {
+            "node": "HTTP – Retell get-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "HTTP – Retell get-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP – Retell get-call": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP – Retell get-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "21afe3ee-5b71-4dd9-9879-d078fc4ad2d6",
+  "meta": {
+    "instanceId": "70bcb9c23754a02a41432fe09a382b8585943beec2860a71f508e60f8ccee350"
+  },
+  "id": "fxSB36PFs5d2SCXc",
+  "tags": [
+    {
+      "createdAt": "2025-08-23T19:15:25.122Z",
+      "updatedAt": "2025-08-23T19:15:25.122Z",
+      "id": "nBTtCuOn93TltIj5",
+      "name": "retell"
+    }
+  ]
+}

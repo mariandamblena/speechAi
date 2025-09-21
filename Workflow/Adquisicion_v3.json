@@ -1,0 +1,202 @@
+{
+  "name": "Adquisicion_v2",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "21e54500-26a1-423c-83cb-1b91b475fd6d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        512,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1gI5PxZ2WfFCmscPOt2Kih9REfjL273_4EOuUDBYzjMk",
+          "mode": "list",
+          "cachedResultName": "chile_usuarios",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gI5PxZ2WfFCmscPOt2Kih9REfjL273_4EOuUDBYzjMk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 507741229,
+          "mode": "list",
+          "cachedResultName": "Hoja1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gI5PxZ2WfFCmscPOt2Kih9REfjL273_4EOuUDBYzjMk/edit#gid=507741229"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        752,
+        112
+      ],
+      "id": "ff07f985-556a-45d4-84e4-14de6528ce44",
+      "name": "Get row(s) in sheet",
+      "notesInFlow": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LAdn0s1GJE4xacy3",
+          "name": "Google Sheets account 3"
+        }
+      },
+      "notes": "Levanta todos los casos de deuda detallados en el excel. Vienen mas de una fila por RUT."
+    },
+    {
+      "parameters": {
+        "jsCode": "// === A3 – Normalizador (con DEBUG) ===\n// Reglas por RUT:\n// - fecha_limite = (FechaVencimiento MÁS GRANDE del RUT) + diasRetraso (de ESA fila) + 3 días\n// - fecha_maxima = (FechaVencimiento MÁS CHICA  del RUT) + diasRetraso (de ESA fila) + 7 días\n// Montos en pesos (no centavos). Teléfonos normalizados Chile (E.164). Fechas sumadas en date-only (UTC).\n\nconst CFG = { country: 'CL', defaultAreaCodeCL: '2' };\n\n/* ----------------- utilidades ----------------- */\nconst normKey = (k) => String(k)\n  .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'')\n  .replace(/\\s+/g,' ').trim().toLowerCase()\n  .replace(/[^\\w ]/g,'').replace(/\\s+/g,' ');\n\nconst normRut = (rutRaw) => {\n  if (rutRaw == null || rutRaw === '') return null;\n  // quitar puntos y guion\n  return String(rutRaw).replace(/[.\\-]/g,'').trim().toUpperCase();\n};\n\n// pesos (no centavos)\nconst toNumberPesos = (val) => {\n  if (val == null || val === '') return 0;\n  if (typeof val === 'number') return val;\n  let s = String(val).trim();\n  s = s.replace(/[\\s$]/g,'').replace(/\\./g,'').replace(',', '.');\n  const n = Number(s);\n  return Number.isFinite(n) ? n : 0;\n};\n\nconst toInt = (v, def=0) => {\n  if (v == null || v === '') return def;\n  const n = parseInt(String(v).replace(/[^\\d\\-]/g,''), 10);\n  return Number.isFinite(n) ? n : def;\n};\n\n/** Genera candidatos de número:\n * - partes por separadores\n * - TODO pegado (all digits)\n * - pegado de los dos primeros grupos cortos (ej: \"08\"+\"4190650\")\n */\nconst splitPhones = (raw) => {\n  const s = String(raw || '').trim();\n  const parts = s.split(/\\D+/).filter(Boolean); // [\"08\",\"4190650\"]\n  const allDigits = s.replace(/\\D+/g, '');      // \"084190650\"\n  const out = new Set();\n  if (allDigits) out.add(allDigits);\n  for (const p of parts) out.add(p);\n  if (parts.length >= 2 && parts[0].length <= 3) out.add(parts[0] + parts[1]);\n  return [...out];\n};\n\n/** Normaliza a +56XXXXXXXXX\n * kind: 'mobile' | 'landline' | 'any'/undefined\n * Cobertura de casos:\n * - \"569978445371\" (9 duplicado) -> +56978445371\n * - \"09-2125907\" (móvil legado) -> +56992125907\n * - \"02-8151807\" (fijo Stgo legado) -> +56228151807\n * - \"08 4190650\" (fijo cortado) -> +56284190650\n */\nconst normCLPhone = (raw, kind) => {\n  if (raw == null || raw === '') return null;\n\n  const wantMobile   = kind === 'mobile';\n  const wantLandline = kind === 'landline';\n  const wantAny      = !wantMobile && !wantLandline; // 'any' u undefined -> acepta ambos\n\n  const parts = splitPhones(raw);\n\n  for (let n of parts) {\n    // 1) Quitar país y trunk\n    if (n.startsWith('56')) n = n.slice(2);\n    n = n.replace(/^0+/, ''); // quita 0 de trunk (09-, 02-, etc.)\n\n    // 2) Heurísticas de legado / errores frecuentes\n\n    // 2.a) Móviles que llegan como \"5699xxxxxxxx\" -> tras quitar 56 queda \"99xxxxxxxxxx\" (10 dígitos)\n    if (n.length === 10 && n.startsWith('99')) {\n      n = n.slice(1); // queda \"9xxxxxxxx\" (9 dígitos)\n    }\n\n    // 2.b) Móvil legado con 8 dígitos que empieza con 9 -> anteponer 9.\n    //     (Caso \"09-2125907\" -> \"92125907\" -> \"992125907\")\n    if (n.length === 8 && n[0] === '9') {\n      n = '9' + n;\n    }\n\n    // 2.c) Fijo Santiago legado: \"2\"+\"7 dígitos\" (total 8) -> anteponer otro '2'\n    //     (Caso \"02-8151807\" -> \"28151807\" -> \"228151807\")\n    if (n.length === 8 && n[0] === '2' && !n.startsWith('22')) {\n      n = '2' + n;\n    }\n\n    // 3) Normalización general por tipo deseado\n    // Si piden móvil explícito y viene 8 dígitos (sin 9), asumimos móvil local sin '9'\n    if (wantMobile && n.length === 8 && n[0] !== '9') n = '9' + n;\n\n    // Si piden fijo (o any) y son 7/8 dígitos que NO arrancan con 9, agregar área por defecto\n    if ((wantLandline || wantAny) && (n.length === 7 || n.length === 8) && n[0] !== '9') {\n      n = (CFG.defaultAreaCodeCL || '2') + n;\n    }\n\n    // 4) Validación final y filtro por tipo\n    if (n.length !== 9) continue;\n    const looksMobile = n.startsWith('9');\n    if (wantMobile && !looksMobile) continue;\n    if (wantLandline && looksMobile) continue;\n\n    return '+56' + n;\n  }\n  return null;\n};\n\nconst getField = (row, keyIndex, candidates) => {\n  for (const c of candidates) {\n    const nk = normKey(c);\n    if (keyIndex[nk] !== undefined) return row[keyIndex[nk]];\n  }\n  for (const nk in keyIndex) {\n    if (candidates.some(c => nk.includes(normKey(c)))) return row[keyIndex[nk]];\n  }\n  return undefined;\n};\n\n// === convierte fechas a YYYY-MM-DD, priorizando formato CL (DD/MM/YYYY o DD-MM-YYYY)\nconst toISO = (v) => {\n  if (v == null || v === '') return null;\n\n  // 1) Excel serial → ISO\n  if (typeof v === 'number') {\n    const base = new Date('1899-12-30T00:00:00Z');\n    const d = new Date(base.getTime() + Math.round(Number(v)) * 86400 * 1000);\n    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);\n  }\n\n  const s = String(v).trim();\n\n  // 2) DD/MM/YYYY o DD-MM-YYYY (estándar CL)\n  let m = s.match(/^(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](\\d{2,4})$/);\n  if (m) {\n    let [_, dd, mm, yyyy] = m;\n    if (yyyy.length === 2) yyyy = '20' + yyyy; // 2 dígitos → asume 20xx\n    const y = parseInt(yyyy,10), M = parseInt(mm,10), D = parseInt(dd,10);\n    if (M >= 1 && M <= 12 && D >= 1 && D <= 31) {\n      const dt = new Date(Date.UTC(y, M - 1, D));\n      return dt.toISOString().slice(0,10);\n    }\n  }\n\n  // 3) ISO/RFC u otros formatos inequívocos\n  const d2 = new Date(s);\n  if (!Number.isNaN(d2.getTime())) return d2.toISOString().slice(0,10);\n\n  return null;\n};\n\n// suma días a ISO (YYYY-MM-DD) en UTC (date-only)\nconst addDaysISO = (iso, days) => {\n  if (!iso) return null;\n  const [y,m,d] = iso.split('-').map(n => parseInt(n,10));\n  const dt = new Date(Date.UTC(y, m-1, d));\n  dt.setUTCDate(dt.getUTCDate() + Number(days||0));\n  return dt.toISOString().slice(0,10);\n};\n\n/* ----------------- proceso ----------------- */\nconst rows = $input.all().map(i => i.json);\nconst batchId = 'batch-' + new Date().toISOString().slice(0,10);\nconst byRut = new Map();\n\nfor (let i=0; i<rows.length; i++) {\n  const r = rows[i];\n  const keyIndex = {}; for (const k of Object.keys(r)) keyIndex[normKey(k)] = k;\n\n  const rut     = normRut(getField(r, keyIndex, ['RUTS','RUT']));\n  const nombre  = String(getField(r, keyIndex, ['Nombre']) ?? '').trim();\n  const empresa = String(getField(r, keyIndex, ['Origen Empresa','OrigenEmpresa','Empresa']) ?? '').trim();\n  const saldo   = toNumberPesos(getField(r, keyIndex, ['Saldo actualizado','Saldo Actualizado',' Saldo actualizado ']));\n\n  // Fechas/días (headers reales y alias)\n  const fechaVenc = toISO(getField(r, keyIndex, [\n    'FechaVencimiento','Fecha Vencimiento','Fecha vencimiento','Vencimiento','Fecha de Vencimiento'\n  ]));\n  const diasRetr  = toInt(getField(r, keyIndex, [\n    'diasRetraso', // header real confirmado\n    'Días de retraso','Dias de retraso','Días de atraso','Dias de atraso',\n    'Dias retraso','Días retraso','dias_de_retraso','diasretraso','dias atraso','dias_atraso'\n  ]), 0);\n\n  const mobRaw  = getField(r, keyIndex, ['Teléfono móvil','Telefono movil','Teléfono celular','Celular']);\n  const resRaw  = getField(r, keyIndex, ['Teléfono Residencial','Telefono residencial','Teléfono fijo','Telefono fijo']);\n\n  const mobile  = normCLPhone(mobRaw, 'mobile');\n  const land    = normCLPhone(resRaw, 'landline') || normCLPhone(resRaw, 'any');\n  const best    = mobile || land || null;\n\n  if (!rut) continue;\n\n  if (!byRut.has(rut)) {\n    byRut.set(rut, {\n      batch_id: batchId,\n      rut,\n      nombre,\n      origen_empresa: empresa || null,\n      phones: {\n        raw_mobile: mobRaw || null,\n        raw_landline: resRaw || null,\n        mobile_e164: mobile || null,\n        landline_e164: land || null,\n        best_e164: best || null\n      },\n      cantidad_cupones: 0,\n      monto_total: 0,\n\n      _maxBase: null, // { fv: 'YYYY-MM-DD', dias: N }\n      _minBase: null, // { fv: 'YYYY-MM-DD', dias: N }\n\n      fecha_limite: null,\n      fecha_maxima: null,\n      debug: { max_base: null, min_base: null }\n    });\n  }\n\n  const acc = byRut.get(rut);\n\n  // acumulados\n  acc.cantidad_cupones += 1;\n  acc.monto_total += (Number(saldo) || 0);\n\n  // teléfonos (completar si faltan)\n  if (!acc.phones.mobile_e164 && mobile)  acc.phones.mobile_e164 = mobile;\n  if (!acc.phones.landline_e164 && land)  acc.phones.landline_e164 = land;\n  if (!acc.phones.best_e164 && best)      acc.phones.best_e164 = best;\n\n  // registrar máximos/mínimos por RUT con su diasRetr\n  if (fechaVenc) {\n    if (!acc._maxBase || fechaVenc > acc._maxBase.fv) {\n      acc._maxBase = { fv: fechaVenc, dias: diasRetr };\n      acc.debug.max_base = acc._maxBase;\n    }\n    if (!acc._minBase || fechaVenc < acc._minBase.fv) {\n      acc._minBase = { fv: fechaVenc, dias: diasRetr };\n      acc.debug.min_base = acc._minBase;\n    }\n  }\n}\n\n// calcular fechas finales desde las bases\nfor (const [rut, acc] of byRut.entries()) {\n  if (acc._maxBase) {\n    const add = Number(acc._maxBase.dias || 0) + 3;\n    acc.fecha_limite = addDaysISO(acc._maxBase.fv, add);\n  }\n  if (acc._minBase) {\n    const add = Number(acc._minBase.dias || 0) + 7;\n    acc.fecha_maxima = addDaysISO(acc._minBase.fv, add);\n  }\n  delete acc._maxBase;\n  delete acc._minBase;\n}\n\n// salida (1 item por RUT)\nconst out = [];\nfor (const [rut, doc] of byRut.entries()) {\n  doc.to_number  = doc.phones.best_e164 || null;\n  doc.key        = doc.batch_id + '::' + rut;\n  doc.created_at = new Date().toISOString();\n  out.push({ json: doc });\n}\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        112
+      ],
+      "id": "7ea96ecc-ac58-491d-95b9-57ca84c52e1d",
+      "name": "Code",
+      "notesInFlow": true,
+      "notes": "agrupa por RUT y calcula cantidad + total en pesos, y fechas"
+    },
+    {
+      "parameters": {
+        "operation": "findOneAndReplace",
+        "collection": "=call_jobs",
+        "updateKey": "job_id",
+        "fields": "=job_id,batch_id,rut,rut_fmt,nombre,origen_empresa,to_number,\ncantidad_cupones,monto_total,fecha_limite,fecha_maxima,fecha_pago_cliente,\ncurrent_time_America_Santiago,attempts,max_attempts,status,created_at,next_try_at,history",
+        "upsert": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.2,
+      "position": [
+        1600,
+        112
+      ],
+      "id": "d944af38-97fd-4d21-b638-4a5373e0567c",
+      "name": "MongoDB2",
+      "notesInFlow": true,
+      "credentials": {
+        "mongoDb": {
+          "id": "CHwcSma6tuWs8i31",
+          "name": "MongoDB account 4"
+        }
+      },
+      "notes": "Crea el documento en mongo para despues consumirlo en el otro workflow de llamada"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "=Debtors",
+        "updateKey": "=rut",
+        "fields": "batch_id,rut,nombre,origen_empresa,phones, cantidad_cupones,monto_total,fecha_limite,fecha_maxima, to_number,key,created_at",
+        "upsert": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        112
+      ],
+      "id": "564ecff6-9b52-4982-b9f7-7bd318d09397",
+      "name": "MongoDB",
+      "notesInFlow": true,
+      "credentials": {
+        "mongoDb": {
+          "id": "CHwcSma6tuWs8i31",
+          "name": "MongoDB account 4"
+        }
+      },
+      "notes": "Agrega deudores a la db de deudores. con su contacto"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Genera un job por deudor para call_jobs\nconst nowCL = new Date().toLocaleString('en-US', {\n  timeZone: 'America/Santiago',\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',\n  hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true\n}) + ' CLT';\n\nfunction pickNumber(doc){\n  const p = doc.phones || {};\n  return doc.to_number || p.best_e164 || p.mobile_e164 || null;\n}\n\n// (opcional) si querés guardar ambas variantes del RUT:\nfunction parseRutLike(rutRaw) {\n  if (!rutRaw) return { rut: null, rut_fmt: null };\n  const s = String(rutRaw).replace(/\\./g,'').replace(/-/g,'').trim().toUpperCase();\n  if (s.length < 2) return { rut: s, rut_fmt: s };\n  const num = s.slice(0, -1), dv = s.slice(-1);\n  return { rut: num + dv, rut_fmt: `${num}-${dv}` };\n}\n\nreturn items.map(({ json }) => {\n  const { rut, rut_fmt } = parseRutLike(json.rut);\n\n  return {\n    json: {\n      job_id: `${json.batch_id}::${rut || json.rut}`,\n      batch_id: json.batch_id,\n\n      // Identificación\n      rut: rut || json.rut,\n      rut_fmt: rut_fmt || json.rut,            // útil para mostrar/enviar al agente\n      nombre: json.nombre || '',\n      origen_empresa: json.origen_empresa || '',\n\n      // Teléfono destino\n      to_number: pickNumber(json),\n\n      // Variables de negocio para el agente (todas en pesos, no centavos)\n      cantidad_cupones: Number(json.cantidad_cupones || 0),\n      monto_total: Number(json.monto_total || 0),\n      fecha_limite: String(json.fecha_limite || ''),\n      fecha_maxima: String(json.fecha_maxima || ''),\n      fecha_pago_cliente: '',\n\n      // Contexto local Chile\n      current_time_America_Santiago: nowCL,\n\n      // Control de cola\n      attempts: 0,\n      max_attempts: 3,\n      status: \"pending\",\n      created_at: new Date().toISOString(),\n      next_try_at: new Date().toISOString(),\n      history: []\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        112
+      ],
+      "id": "c4fcbcfd-1e52-435d-996e-eb0de1f4776a",
+      "name": "Code1",
+      "notesInFlow": true,
+      "notes": "Agrega cantidad de veces llamadas para gestionar la cola de llamadas"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "MongoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MongoDB": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "MongoDB2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a44bcbf5-1fb8-44f1-b48a-7bf88143f0b0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "70bcb9c23754a02a41432fe09a382b8585943beec2860a71f508e60f8ccee350"
+  },
+  "id": "JyiLjtnU8d60b92V",
+  "tags": []
+}

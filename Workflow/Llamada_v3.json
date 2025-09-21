@@ -1,0 +1,434 @@
+{
+  "name": "Llamada_v2",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b793bc2a-316a-4429-967c-1ede465a79ff",
+      "name": "Manual Trigger (operador)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1696,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "batch_id",
+              "value": "batch-2025-09-9"
+            },
+            {
+              "name": "retell_key",
+              "value": "Bearer key_12dcb3a82daa9997fb7f287a7f60"
+            },
+            {
+              "name": "from_number",
+              "value": "+17753707009"
+            },
+            {
+              "name": "agent_id",
+              "value": "agent_9af386a14d75b856946d189bc2"
+            }
+          ],
+          "number": [
+            {
+              "name": "limit_jobs",
+              "value": 50
+            },
+            {
+              "name": "wait_seconds",
+              "value": 20
+            },
+            {
+              "name": "retry_minutes",
+              "value": 10
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3c6536aa-bc4e-43cd-9219-248e857992e5",
+      "name": "Set – Run Params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        -1472,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "collection": "call_jobs",
+        "options": {},
+        "query": "={\n  \"batch_id\": \"batch-2025-09-10\",\n  \"status\": \"pending\"\n}\n"
+      },
+      "id": "ef412789-3f78-4e59-8b33-201d82c0425c",
+      "name": "MongoDB – Find pending (batch)",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.2,
+      "position": [
+        -1216,
+        64
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "CHwcSma6tuWs8i31",
+          "name": "MongoDB account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "83f9b65e-fd67-442d-94ce-a9770131ab24",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1024,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Code – Build Retell body (root body)\nconst FROM_NUMBER = '+17753707009';\nconst AGENT_ID    = 'agent_9af386a14d75b856946d189bc2';\n\nconst it = $json;\n\nconst nowCL = it.current_time_America_Santiago || new Date().toLocaleString('en-US', {\n  timeZone: 'America/Santiago',\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',\n  hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true\n}) + ' CLT';\n\nconst RUT = String(it.rut_fmt || it.rut || '');\n\nconst body = {\n  from_number: String(FROM_NUMBER),\n  to_number: String(it.to_number || ''),\n  agent_id: String(AGENT_ID),\n  retell_llm_dynamic_variables: {\n    nombre: String(it.nombre || ''),\n    empresa: String(it.origen_empresa || ''),\n    RUT: String(RUT),\n    cantidad_cupones: String(it.cantidad_cupones ?? ''),\n    monto_total: String(it.monto_total ?? ''),\n    fecha_limite: String(it.fecha_limite || ''),\n    fecha_maxima: String(it.fecha_maxima || ''),\n    fecha_pago_cliente: '',\n    // si tu agente espera la clave con slash, podés enviar ambas:\n    current_time_America_Santiago: String(nowCL),\n    \"current_time_America/Santiago\": String(nowCL)\n  }\n};\n\n// devolvés el body directo como $json (raíz)\nreturn [{ json: body }];\n"
+      },
+      "id": "0225a991-81a4-4248-9bdd-176cab4f0619",
+      "name": "Code – Build Retell body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json || {};\nconst callId = r.call_id || r.data?.call_id || r.id || '';\nif (!callId) throw new Error('No call_id in response: ' + JSON.stringify(r));\nreturn [{ json: { call_id: callId, job_id: $item(0,'Code – Build Retell body').$json.job_id, attempts: $item(0,'Code – Build Retell body').$json.attempts } }];"
+      },
+      "id": "6fca1114-b494-4cbf-a3f5-beb04e904045",
+      "name": "Code – Extract call_id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "7caa5332-681a-4629-87a8-24829b9eb822",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        -128
+      ],
+      "webhookId": "0c793e38-ccf6-4f4b-a9f2-b45c2a2b603c"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.retellai.com/v2/get-call/{{$json.call_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer key_12dcb3a82daa9997fb7f287a7f60"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "6adf3889-19c1-45c3-ae73-2889f7d3ab7f",
+      "name": "HTTP – Retell get-call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -96,
+        64
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ['ended','error','not_connected','completed','success','resolved'].includes(($json.call_status||'').toLowerCase()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4f71fc43-aabe-4efc-9b4c-d91503b84e4b",
+      "name": "If – ¿Terminó?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        128,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Code – Finaliza estado (sin Set; con fallback)\nconst g = $json || {};\nconst status = String(g.call_status || '').toLowerCase();\nconst ended = [\"ended\",\"error\",\"not_connected\",\"completed\",\"success\",\"resolved\"].includes(status);\n\n// Trae job_id/attempts/call_id del nodo anterior\nconst base = $item(0, 'Code – Extract call_id').$json || {};\n\n// retry_minutes: primero intenta leerlo desde cfg que venía de \"Build Retell body\" (si existiera),\n// si no, usa constante por defecto.\nconst cfgRetry = $item(0, 'Code – Build Retell body')?.$json?.cfg?.retry_minutes;\nconst RETRY_MINUTES_DEFAULT = 10;\nconst retryMin = Number(cfgRetry ?? RETRY_MINUTES_DEFAULT) || RETRY_MINUTES_DEFAULT;\n\nreturn [{\n  json: {\n    job_id: base.job_id,\n    call_id: base.call_id,\n    attempts: (Number(base.attempts || 0) + 1),\n    status_final: ended ? 'completed' : 'retry',\n    outcome: g,\n    last_attempt_at: new Date().toISOString(),\n    next_try_at: new Date(Date.now() + retryMin * 60 * 1000).toISOString()\n  }\n}];\n"
+      },
+      "id": "3b3477ab-8bb8-485d-be0f-2336b790f052",
+      "name": "Code – Finaliza estado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "call_jobs",
+        "updateKey": "={\n  \"query\": { \"job_id\": \"={{$json.job_id}}\" },\n  \"updateFields\": {\n    \"status\": \"={{$json.status_final}}\",\n    \"outcome\": \"={{$json.outcome}}\",\n    \"attempts\": \"={{$json.attempts}}\",\n    \"last_attempt_at\": \"={{$json.last_attempt_at}}\",\n    \"next_try_at\": \"={{$json.next_try_at}}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "3d5ab117-5f23-452a-a671-770d72e3b36a",
+      "name": "MongoDB – Update call_jobs",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.2,
+      "position": [
+        576,
+        -32
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "CHwcSma6tuWs8i31",
+          "name": "MongoDB account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "=15",
+        "unit": "seconds"
+      },
+      "id": "9758b94c-bcc9-468c-a16d-75f9b346e9da",
+      "name": "Wait (loop)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        336,
+        256
+      ],
+      "webhookId": "43e16113-8d3c-4e34-8995-39e251564cfe"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.retellai.com/v2/create-phone-call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer key_12dcb3a82daa9997fb7f287a7f60"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "1413c7d6-cd13-420d-a66f-010a7beb4d98",
+      "name": "HTTP – Retell create-phone-call1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -576,
+        320
+      ],
+      "notesInFlow": true,
+      "notes": "Envía el body como JSON usando el output del nodo Code."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger (operador)": {
+      "main": [
+        [
+          {
+            "node": "Set – Run Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set – Run Params": {
+      "main": [
+        [
+          {
+            "node": "MongoDB – Find pending (batch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MongoDB – Find pending (batch)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code – Build Retell body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code – Build Retell body": {
+      "main": [
+        [
+          {
+            "node": "HTTP – Retell create-phone-call1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code – Extract call_id": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP – Retell get-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP – Retell get-call": {
+      "main": [
+        [
+          {
+            "node": "If – ¿Terminó?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If – ¿Terminó?": {
+      "main": [
+        [
+          {
+            "node": "Code – Finaliza estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait (loop)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (loop)": {
+      "main": [
+        [
+          {
+            "node": "HTTP – Retell get-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code – Finaliza estado": {
+      "main": [
+        [
+          {
+            "node": "MongoDB – Update call_jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP – Retell create-phone-call1": {
+      "main": [
+        [
+          {
+            "node": "Code – Extract call_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "821ac347-e53b-4d08-8761-51456fe941b5",
+  "meta": {
+    "instanceId": "70bcb9c23754a02a41432fe09a382b8585943beec2860a71f508e60f8ccee350"
+  },
+  "id": "4paO2eqbdZuVmYqa",
+  "tags": []
+}

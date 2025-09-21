@@ -1,0 +1,172 @@
+{
+  "name": "Seed",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "671f1e8c-3223-4bc4-823d-7aeff60910ea",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "batch_id",
+              "value": "batch-20250903-uh85"
+            }
+          ],
+          "number": [
+            {
+              "name": "max_attempts",
+              "value": 2
+            }
+          ],
+          "boolean": [
+            {
+              "name": "only_mobile",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        352,
+        224
+      ],
+      "name": "Set – Config",
+      "id": "1a0f1617-f9ed-4d7b-a116-568288c1092a"
+    },
+    {
+      "parameters": {
+        "collection": "batch_debtors",
+        "options": {},
+        "query": "={{ JSON.stringify($json.only_mobile ? ({ batch_id: $json.batch_id, \"phones.mobile_e164\": { $exists: true, $ne: null } }) : ({ batch_id: $json.batch_id, $or: [ { to_number: { $exists: true, $ne: null } }, { \"phones.best_e164\": { $exists: true, $ne: null } }, { \"phones.mobile_e164\": { $exists: true, $ne: null } } ] })) }}"
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        224
+      ],
+      "name": "MongoDB – Find batch_debtors",
+      "id": "84e1c715-a586-4fa1-8062-ad3ab7ad70d8",
+      "credentials": {
+        "mongoDb": {
+          "id": "CHwcSma6tuWs8i31",
+          "name": "MongoDB account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lee config del primer item del nodo \"Set – Config\"\nconst cfg = $items('Set – Config', 0).json;\nconst maxAttempts = Number(cfg?.max_attempts ?? 2);\n\nfunction pickNumber(doc) {\n  const phones = doc.phones || {};\n  // Prioridad: to_number (si ya lo tenés calculado) → best_e164 → mobile_e164\n  return doc.to_number || phones.best_e164 || phones.mobile_e164 || null;\n}\n\n// Para cada input (deudor) generamos 1 job\nreturn items.map(({ json }) => {\n  const toNumber = pickNumber(json);\n  const now = new Date().toISOString();\n\n  const job = {\n    job_id: `${json.batch_id}::${json.rut}`,    // único por batch + rut\n    batch_id: json.batch_id,\n\n    // Datos del deudor\n    rut: json.rut,\n    nombre: json.nombre,\n    origen_empresa: json.origen_empresa,\n\n    // Teléfono destino\n    to_number: toNumber,\n\n    // Payload útil para el agente\n    deudas: json.deudas || [],\n    totales: json.totales || {},\n\n    // Control de la cola\n    attempts: 0,\n    max_attempts: maxAttempts,\n    status: \"pending\",           // pending | dialing | no_answer | success | failed\n    created_at: now,\n    next_try_at: now,\n    history: []\n  };\n\n  return { json: job };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        224
+      ],
+      "id": "75946601-d48f-4b3c-af73-97aa93f646bf",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "operation": "findOneAndReplace",
+        "collection": "=call_jobs",
+        "updateKey": "job_id",
+        "fields": "=",
+        "upsert": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.2,
+      "position": [
+        1008,
+        208
+      ],
+      "id": "ec15e5ad-52a2-4dfb-b796-4cb07f93e47a",
+      "name": "MongoDB2",
+      "credentials": {
+        "mongoDb": {
+          "id": "CHwcSma6tuWs8i31",
+          "name": "MongoDB account 4"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Set – Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set – Config": {
+      "main": [
+        [
+          {
+            "node": "MongoDB – Find batch_debtors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MongoDB – Find batch_debtors": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "MongoDB2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "76ef56be-2559-4f68-927a-7bd637fb6f6b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "70bcb9c23754a02a41432fe09a382b8585943beec2860a71f508e60f8ccee350"
+  },
+  "id": "suU1OfgHR0eIwRm3",
+  "tags": [
+    {
+      "createdAt": "2025-08-23T19:15:25.122Z",
+      "updatedAt": "2025-08-23T19:15:25.122Z",
+      "id": "nBTtCuOn93TltIj5",
+      "name": "retell"
+    }
+  ]
+}

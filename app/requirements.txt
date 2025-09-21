@@ -1,0 +1,4 @@
+pymongo>=4.8
+python-dotenv>=1.0
+requests>=2.32
+tenacity>=9.0

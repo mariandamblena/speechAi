@@ -1,0 +1,86 @@
+@startuml SequenceDiagram
+title Diagrama de Secuencia - Procesamiento de Llamada Completo
+
+actor "n8n Workflow" as N8N
+participant "MongoDB" as DB
+participant "CallWorker" as Worker
+participant "JobStore" as Store
+participant "CallOrchestrator" as Orchestrator
+participant "RetellClient" as Retell
+participant "Retell AI API" as API
+
+== Creación de Job ==
+N8N -> DB : insert call_job
+note right : Job con status: "pending"
+
+== Procesamiento por Worker ==
+Worker -> Worker : start main loop
+Worker -> Store : get_next_pending_job()
+Store -> DB : find job with status="pending"
+DB -> Store : return job data
+Store -> Worker : return job
+Worker -> Store : reserve_job(job_id)
+Store -> DB : update status="processing"
+
+== Orquestación de Llamada ==
+Worker -> Orchestrator : process_job(job)
+Orchestrator -> Orchestrator : prepare_call_variables(job)
+Orchestrator -> Orchestrator : get_call_phone_number(job)
+
+note right : Si hay múltiples teléfonos,\nusa try_phones[current_index]
+
+Orchestrator -> Retell : create_phone_call(agent_id, variables, to_number)
+Retell -> API : POST /create-phone-call
+API -> Retell : return call_id
+Retell -> Orchestrator : return call_id
+
+Orchestrator -> Store : update_job_status(job_id, "calling", {call_id})
+Store -> DB : update with call_id and timestamp
+
+== Monitoreo de Llamada ==
+loop Polling Loop (max 40 attempts, 15s interval)
+    Orchestrator -> Retell : get_call_details(call_id)
+    Retell -> API : GET /get-call/{call_id}
+    API -> Retell : return call details
+    Retell -> Orchestrator : return call_data
+    
+    alt Call in Progress
+        Orchestrator -> Store : update_job_status(job_id, "in_progress", call_data)
+        Store -> DB : update with current status
+        Orchestrator -> Orchestrator : sleep(15 seconds)
+    else Call Completed Successfully
+        Orchestrator -> Orchestrator : extract_call_results(call_data)
+        Orchestrator -> Orchestrator : calculate_cost(call_data)
+        Orchestrator -> Store : complete_job(job_id, results, cost)
+        Store -> DB : update status="completed", add results
+        note right : Incluye transcript, variables extraídas,\ncosto, duración, etc.
+    else Call Failed
+        alt Has More Phone Numbers
+            Orchestrator -> Orchestrator : determine_retry_delay(call_data)
+            Orchestrator -> Store : mark_job_for_retry(job_id, delay)
+            Store -> DB : update retry_at, advance phone index
+            note right : Delay: 30min normal, 60min no-answer
+        else No More Phone Numbers
+            Orchestrator -> Store : fail_job(job_id, error, 0)
+            Store -> DB : update status="failed"
+        end
+    end
+end
+
+== Manejo de Errores y Reintentos ==
+alt Polling Timeout
+    Orchestrator -> Store : fail_job(job_id, "polling_timeout", 30)
+    Store -> DB : update for retry in 30 minutes
+end
+
+alt API Error
+    Orchestrator -> Store : fail_job(job_id, error_message, 60)
+    Store -> DB : update for retry in 60 minutes
+end
+
+== Worker Siguiente Iteración ==
+Worker -> Worker : sleep(10 seconds)
+Worker -> Store : get_next_pending_job()
+note right : Incluye jobs listos para retry\n(retry_at <= now)
+
+@enduml

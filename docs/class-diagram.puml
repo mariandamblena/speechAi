@@ -1,0 +1,174 @@
+@startuml ClassDiagram
+title Diagrama de Clases - Sistema de Call Tracking
+
+!define RECTANGLE class
+
+package "Core Classes" {
+    class CallWorker {
+        -config: dict
+        -job_store: JobStore
+        -retell_client: RetellClient
+        -orchestrator: CallOrchestrator
+        
+        +main()
+        +process_pending_jobs()
+        -setup_logging()
+        -load_config()
+    }
+    
+    class JobStore {
+        -collection: Collection
+        
+        +__init__(connection_string: str)
+        +get_next_pending_job() : dict
+        +reserve_job(job_id: ObjectId) : bool
+        +complete_job(job_id: ObjectId, results: dict, cost: float)
+        +fail_job(job_id: ObjectId, error: str, retry_delay_minutes: int)
+        +update_job_status(job_id: ObjectId, status: str, data: dict)
+        +mark_job_for_retry(job_id: ObjectId, delay_minutes: int)
+        +reset_job_to_pending(job_id: ObjectId)
+        -calculate_next_retry_time(delay_minutes: int) : datetime
+    }
+    
+    class RetellClient {
+        -api_key: str
+        -base_url: str
+        
+        +__init__(api_key: str)
+        +create_phone_call(agent_id: str, variables: dict, to_number: str) : dict
+        +get_call_details(call_id: str) : dict
+        -_make_request(method: str, endpoint: str, data: dict) : dict
+        -_get_headers() : dict
+    }
+    
+    class CallOrchestrator {
+        -retell_client: RetellClient
+        -job_store: JobStore
+        -max_polling_attempts: int
+        -polling_interval: int
+        
+        +__init__(retell_client: RetellClient, job_store: JobStore)
+        +process_job(job: dict) : bool
+        +initiate_call(job: dict) : str
+        +monitor_call(call_id: str, job_id: ObjectId) : dict
+        +handle_call_completion(job_id: ObjectId, call_data: dict, cost: float)
+        +handle_call_failure(job_id: ObjectId, error: str)
+        -prepare_call_variables(job: dict) : dict
+        -get_call_phone_number(job: dict) : str
+        -update_call_progress(job_id: ObjectId, status: str, data: dict)
+        -calculate_cost(call_data: dict) : float
+        -extract_call_results(call_data: dict) : dict
+        -determine_retry_delay(call_data: dict) : int
+    }
+    
+    class CallResult {
+        +call_id: str
+        +status: str
+        +duration: int
+        +cost: float
+        +transcript: str
+        +recording_url: str
+        +start_timestamp: datetime
+        +end_timestamp: datetime
+        +disconnect_reason: str
+        +agent_id: str
+        +to_number: str
+        +variables: dict
+        +extracted_variables: dict
+        
+        +__init__(call_data: dict)
+        +to_dict() : dict
+        +is_successful() : bool
+        +get_retry_delay() : int
+    }
+    
+    class JobData {
+        +job_id: ObjectId
+        +nombre: str
+        +telefono: str
+        +try_phones: list
+        +cedula: str
+        +cuotas_adeudadas: int
+        +variables: dict
+        +status: str
+        +created_at: datetime
+        +reserved_at: datetime
+        +completed_at: datetime
+        +retry_count: int
+        +retry_at: datetime
+        +call_results: list
+        +current_phone_index: int
+        +total_cost: float
+        
+        +__init__(data: dict)
+        +get_current_phone() : str
+        +has_more_phones() : bool
+        +advance_to_next_phone()
+        +add_call_result(result: CallResult)
+        +is_ready_for_retry() : bool
+        +get_status_summary() : dict
+    }
+}
+
+package "Configuration" {
+    class Config {
+        +MONGODB_CONNECTION: str
+        +RETELL_API_KEY: str
+        +RETELL_AGENT_ID: str
+        +POLLING_INTERVAL: int
+        +MAX_POLLING_ATTEMPTS: int
+        +RETRY_DELAYS: dict
+        
+        +load_from_env() : dict
+        +validate_config(config: dict) : bool
+    }
+}
+
+package "Utilities" {
+    class Logger {
+        +setup_logging(level: str)
+        +log_job_progress(job_id: str, message: str)
+        +log_call_event(call_id: str, event: str)
+        +log_error(error: str, context: dict)
+    }
+    
+    class ResetTool {
+        -job_store: JobStore
+        
+        +reset_job_by_id(job_id: str)
+        +reset_jobs_by_status(status: str)
+        +list_jobs_by_status(status: str) : list
+    }
+}
+
+' Relaciones
+CallWorker *-- JobStore
+CallWorker *-- RetellClient
+CallWorker *-- CallOrchestrator
+CallWorker ..> Config
+CallWorker ..> Logger
+
+CallOrchestrator *-- RetellClient
+CallOrchestrator *-- JobStore
+CallOrchestrator ..> CallResult
+CallOrchestrator ..> JobData
+
+JobStore ..> JobData
+JobStore --> "MongoDB"
+
+RetellClient --> "Retell AI API"
+
+CallResult <-- CallOrchestrator
+JobData <-- JobStore
+
+ResetTool *-- JobStore
+
+' Notas
+note right of CallWorker : Punto de entrada principal\nManeja la concurrencia distribuida
+note right of JobStore : Abstrae operaciones de MongoDB\nManeja reservas y estados
+note right of CallOrchestrator : Lógica central de procesamiento\nManeja lifecycle completo de llamadas
+note right of RetellClient : Cliente HTTP para Retell AI\nManeja autenticación y requests
+note bottom of CallResult : Encapsula resultados de llamada\nIncluye transcript y variables extraídas
+note bottom of JobData : Representa job en MongoDB\nManeja múltiples teléfonos y reintentos
+
+@enduml

@@ -1,0 +1,34 @@
+@startuml StateDiagram
+title Diagrama de Estados - Ciclo de Vida de Call Job
+
+[*] --> pending : Job creado por n8n workflow
+
+pending --> processing : Worker reserva job
+processing --> calling : Inicia llamada con Retell AI
+calling --> in_progress : Llamada conectada
+
+in_progress --> completed : Llamada exitosa
+in_progress --> retry_scheduled : Llamada falló\n(con más teléfonos)
+in_progress --> failed : Llamada falló\n(sin más teléfonos)
+calling --> retry_scheduled : Error al conectar\n(con más teléfonos)
+calling --> failed : Error al conectar\n(sin más teléfonos)
+
+retry_scheduled --> pending : retry_at alcanzado
+retry_scheduled : Estado temporal\ncon delay calculado
+
+completed --> [*]
+failed --> [*]
+
+' Estados especiales para administración
+failed --> pending : reset_job.py\nreinicio manual
+completed --> pending : reset_job.py\nreprocesamiento
+
+note right of pending : Jobs disponibles para\nser procesados por workers
+note right of processing : Job reservado por worker\nevita procesamiento doble
+note right of calling : Llamada iniciada,\nesperando conexión
+note right of in_progress : Llamada activa,\npolling cada 15s
+note right of retry_scheduled : Esperando retry_at\ncon nuevo teléfono
+note right of completed : Resultados guardados\ncon transcript y costo
+note right of failed : Sin más opciones\no error irrecuperable
+
+@enduml

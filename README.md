@@ -445,5 +445,8 @@ Para soporte técnico, contacta al equipo de desarrollo a través de los canales
 *(Aquí iría otro diagrama UML o de flujo mostrando el proceso de llamadas, reintentos y exclusiones)*
 
 ---
+# Desde el directorio principal
+cd C:\Users\maria\OneDrive\Documents\proyectos\speechAi_backend
+.\.venv\Scripts\python.exe app\call_worker.py
 
 ## 📂 Estructura de Archivos

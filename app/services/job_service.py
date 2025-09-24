@@ -5,12 +5,25 @@ Implementa lógica de negocio siguiendo principios SOLID
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from bson import ObjectId
 
 from config.settings import WorkerConfig
 from domain.models import JobModel, CallResult, ContactInfo
 from domain.enums import JobStatus
-from infrastructure.database import IJobRepository, ICallResultRepository
+from infrastructure.database_manager import DatabaseManager
+from typing import Optional, List, Dict, Any, Protocol
+
+# Interfaces temporales para compatibilidad
+class IJobRepository(Protocol):
+    def find_and_claim_pending_job(self, worker_id: str, lease_seconds: int) -> Optional[JobModel]: ...
+    def update_job_status(self, job_id, status: JobStatus, **kwargs) -> bool: ...
+    def save_job_result(self, job_id, call_id: str, call_data: Dict[str, Any]) -> bool: ...
+
+class ICallResultRepository(Protocol):
+    def save_call_result(self, result: CallResult) -> bool: ...
+
+# TODO: Migrar completamente a database_manager cuando se necesite usar workers
 
 logger = logging.getLogger(__name__)
 

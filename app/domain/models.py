@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from bson import ObjectId
 
-from .enums import JobStatus, CallStatus, CallMode
+from .enums import JobStatus, CallStatus, CallMode, AccountStatus, PlanType
 
 
 @dataclass
@@ -61,6 +61,8 @@ class CallPayload:
 class JobModel:
     """Modelo principal de un job de llamada"""
     _id: Optional[ObjectId] = None
+    account_id: str = ""  # Vinculación con la cuenta
+    batch_id: Optional[str] = None  # Opcional: agrupa jobs en lotes
     status: JobStatus = JobStatus.PENDING
     contact: Optional[ContactInfo] = None
     payload: Optional[CallPayload] = None
@@ -71,6 +73,10 @@ class JobModel:
     max_attempts: int = 3
     reserved_until: Optional[datetime] = None
     worker_id: Optional[str] = None
+    
+    # Control de costos y límites
+    estimated_cost: Optional[float] = None
+    reserved_amount: Optional[float] = None  # Fondos reservados para esta llamada
     
     # Timestamps
     created_at: Optional[datetime] = None
@@ -108,6 +114,8 @@ class JobModel:
             data["_id"] = self._id
             
         data.update({
+            "account_id": self.account_id,
+            "batch_id": self.batch_id,
             "status": self.status.value,
             "mode": self.mode.value,
             "attempts": self.attempts,
@@ -133,9 +141,9 @@ class JobModel:
         
         # Campos opcionales
         optional_fields = [
-            "reserved_until", "worker_id", "created_at", "started_at", 
-            "completed_at", "failed_at", "updated_at", "call_id", 
-            "call_result", "last_error"
+            "reserved_until", "worker_id", "estimated_cost", "reserved_amount",
+            "created_at", "started_at", "completed_at", "failed_at", "updated_at", 
+            "call_id", "call_result", "last_error"
         ]
         
         for field_name in optional_fields:
@@ -171,6 +179,8 @@ class JobModel:
         
         return cls(
             _id=data.get("_id"),
+            account_id=data.get("account_id", ""),
+            batch_id=data.get("batch_id"),
             status=JobStatus(data.get("status", "pending")),
             contact=contact,
             payload=payload,
@@ -179,6 +189,8 @@ class JobModel:
             max_attempts=data.get("max_attempts", 3),
             reserved_until=data.get("reserved_until"),
             worker_id=data.get("worker_id"),
+            estimated_cost=data.get("estimated_cost"),
+            reserved_amount=data.get("reserved_amount"),
             created_at=data.get("created_at"),
             started_at=data.get("started_at"),
             completed_at=data.get("completed_at"),
@@ -230,3 +242,271 @@ class CallResult:
             "is_successful": self.is_successful,
             "created_at": self.created_at,
         }
+
+
+@dataclass
+class AccountModel:
+    """Modelo para cuentas de usuario con sistema de créditos"""
+    _id: Optional[ObjectId] = None
+    account_id: str = ""
+    account_name: str = ""
+    plan_type: PlanType = PlanType.MINUTES_BASED
+    status: AccountStatus = AccountStatus.PENDING_ACTIVATION
+    
+    # Balance para planes basados en minutos
+    minutes_purchased: float = 0.0
+    minutes_used: float = 0.0
+    minutes_reserved: float = 0.0  # Minutos reservados para llamadas en progreso
+    
+    # Balance para planes basados en créditos
+    credit_balance: float = 0.0
+    credit_used: float = 0.0
+    credit_reserved: float = 0.0  # Créditos reservados para llamadas en progreso
+    
+    # Configuración de precios
+    cost_per_minute: float = 0.15  # USD por minuto
+    cost_per_call_setup: float = 0.02  # USD por llamada iniciada
+    cost_failed_call: float = 0.01  # USD por llamada fallida
+    
+    # Límites operacionales
+    max_concurrent_calls: int = 3
+    daily_call_limit: int = 1000
+    calls_today: int = 0
+    
+    # Timestamps
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    last_topup_at: Optional[datetime] = None
+    
+    @property
+    def minutes_remaining(self) -> float:
+        """Minutos disponibles (sin reservas)"""
+        return max(0, self.minutes_purchased - self.minutes_used - self.minutes_reserved)
+    
+    @property
+    def credit_available(self) -> float:
+        """Créditos disponibles (sin reservas)"""
+        return max(0, self.credit_balance - self.credit_reserved)
+    
+    @property
+    def has_sufficient_balance(self) -> bool:
+        """Verifica si tiene saldo suficiente para llamadas"""
+        if self.plan_type == PlanType.UNLIMITED:
+            return True
+        elif self.plan_type == PlanType.MINUTES_BASED:
+            return self.minutes_remaining > 0
+        else:  # CREDIT_BASED
+            return self.credit_available >= self.cost_per_call_setup
+    
+    @property
+    def can_make_calls(self) -> bool:
+        """Verifica si puede hacer llamadas (saldo + límites + status)"""
+        return (
+            self.status == AccountStatus.ACTIVE and
+            self.has_sufficient_balance and
+            self.calls_today < self.daily_call_limit
+        )
+    
+    def estimate_call_cost(self, estimated_minutes: float = 3.0) -> float:
+        """Estima el costo de una llamada"""
+        if self.plan_type == PlanType.MINUTES_BASED:
+            return estimated_minutes  # En minutos
+        else:  # CREDIT_BASED
+            return self.cost_per_call_setup + (estimated_minutes * self.cost_per_minute)
+    
+    def reserve_funds(self, estimated_minutes: float = 3.0) -> bool:
+        """Reserva fondos para una llamada. Retorna True si fue exitoso"""
+        if not self.can_make_calls:
+            return False
+        
+        if self.plan_type == PlanType.MINUTES_BASED:
+            if self.minutes_remaining >= estimated_minutes:
+                self.minutes_reserved += estimated_minutes
+                return True
+        else:  # CREDIT_BASED
+            estimated_cost = self.estimate_call_cost(estimated_minutes)
+            if self.credit_available >= estimated_cost:
+                self.credit_reserved += estimated_cost
+                return True
+        
+        return False
+    
+    def consume_funds(self, actual_minutes: float, actual_cost: float = None) -> None:
+        """Consume fondos después de una llamada completada"""
+        if self.plan_type == PlanType.MINUTES_BASED:
+            # Liberar reserva y consumir minutos reales
+            self.minutes_reserved = max(0, self.minutes_reserved - actual_minutes)
+            self.minutes_used += actual_minutes
+        else:  # CREDIT_BASED
+            if actual_cost is None:
+                actual_cost = self.cost_per_call_setup + (actual_minutes * self.cost_per_minute)
+            
+            # Liberar reserva y consumir costo real
+            self.credit_reserved = max(0, self.credit_reserved - actual_cost)
+            self.credit_used += actual_cost
+        
+        self.calls_today += 1
+        self.updated_at = datetime.utcnow()
+    
+    def release_reservation(self, reserved_amount: float) -> None:
+        """Libera una reserva (ej: cuando una llamada falla al iniciarse)"""
+        if self.plan_type == PlanType.MINUTES_BASED:
+            self.minutes_reserved = max(0, self.minutes_reserved - reserved_amount)
+        else:  # CREDIT_BASED
+            self.credit_reserved = max(0, self.credit_reserved - reserved_amount)
+    
+    def add_minutes(self, minutes: float) -> None:
+        """Agrega minutos comprados"""
+        self.minutes_purchased += minutes
+        self.last_topup_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+    
+    def add_credits(self, amount: float) -> None:
+        """Agrega créditos comprados"""
+        self.credit_balance += amount
+        self.last_topup_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convierte a diccionario para MongoDB"""
+        return {
+            "_id": self._id,
+            "account_id": self.account_id,
+            "account_name": self.account_name,
+            "plan_type": self.plan_type.value,
+            "status": self.status.value,
+            "minutes_purchased": self.minutes_purchased,
+            "minutes_used": self.minutes_used,
+            "minutes_reserved": self.minutes_reserved,
+            "credit_balance": self.credit_balance,
+            "credit_used": self.credit_used,
+            "credit_reserved": self.credit_reserved,
+            "cost_per_minute": self.cost_per_minute,
+            "cost_per_call_setup": self.cost_per_call_setup,
+            "cost_failed_call": self.cost_failed_call,
+            "max_concurrent_calls": self.max_concurrent_calls,
+            "daily_call_limit": self.daily_call_limit,
+            "calls_today": self.calls_today,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "expires_at": self.expires_at,
+            "last_topup_at": self.last_topup_at,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AccountModel":
+        """Crea una AccountModel desde un diccionario de MongoDB"""
+        return cls(
+            _id=data.get("_id"),
+            account_id=data.get("account_id", ""),
+            account_name=data.get("account_name", ""),
+            plan_type=PlanType(data.get("plan_type", "minutes_based")),
+            status=AccountStatus(data.get("status", "pending_activation")),
+            minutes_purchased=data.get("minutes_purchased", 0.0),
+            minutes_used=data.get("minutes_used", 0.0),
+            minutes_reserved=data.get("minutes_reserved", 0.0),
+            credit_balance=data.get("credit_balance", 0.0),
+            credit_used=data.get("credit_used", 0.0),
+            credit_reserved=data.get("credit_reserved", 0.0),
+            cost_per_minute=data.get("cost_per_minute", 0.15),
+            cost_per_call_setup=data.get("cost_per_call_setup", 0.02),
+            cost_failed_call=data.get("cost_failed_call", 0.01),
+            max_concurrent_calls=data.get("max_concurrent_calls", 3),
+            daily_call_limit=data.get("daily_call_limit", 1000),
+            calls_today=data.get("calls_today", 0),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+            expires_at=data.get("expires_at"),
+            last_topup_at=data.get("last_topup_at"),
+        )
+
+
+@dataclass
+class BatchModel:
+    """Modelo para lotes de llamadas"""
+    _id: Optional[ObjectId] = None
+    account_id: str = ""
+    batch_id: str = ""
+    name: str = ""
+    description: str = ""
+    
+    # Estadísticas del batch
+    total_jobs: int = 0
+    pending_jobs: int = 0
+    completed_jobs: int = 0
+    failed_jobs: int = 0
+    suspended_jobs: int = 0
+    
+    # Costos y tiempos
+    total_cost: float = 0.0
+    total_minutes: float = 0.0
+    estimated_cost: float = 0.0
+    
+    # Control de ejecución
+    is_active: bool = True
+    priority: int = 1  # 1 = normal, 2 = alta, 3 = urgente
+    
+    # Timestamps
+    created_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    
+    @property
+    def completion_rate(self) -> float:
+        """Porcentaje de completitud"""
+        if self.total_jobs == 0:
+            return 0.0
+        return (self.completed_jobs / self.total_jobs) * 100
+    
+    @property
+    def is_completed(self) -> bool:
+        """Verifica si el batch está completado"""
+        return self.pending_jobs == 0 and self.total_jobs > 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convierte a diccionario para MongoDB"""
+        return {
+            "_id": self._id,
+            "account_id": self.account_id,
+            "batch_id": self.batch_id,
+            "name": self.name,
+            "description": self.description,
+            "total_jobs": self.total_jobs,
+            "pending_jobs": self.pending_jobs,
+            "completed_jobs": self.completed_jobs,
+            "failed_jobs": self.failed_jobs,
+            "suspended_jobs": self.suspended_jobs,
+            "total_cost": self.total_cost,
+            "total_minutes": self.total_minutes,
+            "estimated_cost": self.estimated_cost,
+            "is_active": self.is_active,
+            "priority": self.priority,
+            "created_at": self.created_at,
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "BatchModel":
+        """Crea un BatchModel desde un diccionario de MongoDB"""
+        return cls(
+            _id=data.get("_id"),
+            account_id=data.get("account_id", ""),
+            batch_id=data.get("batch_id", ""),
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            total_jobs=data.get("total_jobs", 0),
+            pending_jobs=data.get("pending_jobs", 0),
+            completed_jobs=data.get("completed_jobs", 0),
+            failed_jobs=data.get("failed_jobs", 0),
+            suspended_jobs=data.get("suspended_jobs", 0),
+            total_cost=data.get("total_cost", 0.0),
+            total_minutes=data.get("total_minutes", 0.0),
+            estimated_cost=data.get("estimated_cost", 0.0),
+            is_active=data.get("is_active", True),
+            priority=data.get("priority", 1),
+            created_at=data.get("created_at"),
+            started_at=data.get("started_at"),
+            completed_at=data.get("completed_at"),
+        )

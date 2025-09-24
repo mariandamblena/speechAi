@@ -11,6 +11,7 @@ class JobStatus(Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
+    SUSPENDED = "suspended"  # Nuevo: Para jobs sin créditos
 
 
 class CallStatus(Enum):
@@ -31,3 +32,18 @@ class CallMode(Enum):
     """Modos de operación para llamadas"""
     SINGLE = "single"          # Una sola llamada por job
     CONTINUOUS = "continuous"  # Múltiples intentos si falla
+
+
+class AccountStatus(Enum):
+    """Estados de cuenta"""
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    EXPIRED = "expired"
+    PENDING_ACTIVATION = "pending_activation"
+
+
+class PlanType(Enum):
+    """Tipos de planes de facturación"""
+    MINUTES_BASED = "minutes_based"    # Por minutos comprados
+    CREDIT_BASED = "credit_based"      # Por créditos en dinero
+    UNLIMITED = "unlimited"            # Sin límites

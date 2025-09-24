@@ -19,7 +19,8 @@ def test_imports():
         
         # Infrastructure
         from infrastructure.retell_client import IRetellClient, RetellApiClient
-        from infrastructure.database import DatabaseService
+        # from infrastructure.database import DatabaseService  # Migrado a database_manager
+        from infrastructure.database_manager import DatabaseManager
         print("✅ Infrastructure module: OK")
         
         # Services

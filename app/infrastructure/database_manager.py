@@ -1,0 +1,56 @@
+"""
+Database Manager moderno para API asíncrona con Motor
+"""
+
+import logging
+from typing import Optional, Dict, Any
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
+
+
+class DatabaseManager:
+    """Manager para conexiones asíncronas a MongoDB usando Motor"""
+    
+    def __init__(self, connection_string: str, database_name: str):
+        self.connection_string = connection_string
+        self.database_name = database_name
+        self.client: Optional[AsyncIOMotorClient] = None
+        self.db: Optional[AsyncIOMotorDatabase] = None
+        self.logger = logging.getLogger(__name__)
+    
+    async def connect(self) -> None:
+        """Conecta a MongoDB"""
+        try:
+            self.client = AsyncIOMotorClient(self.connection_string)
+            self.db = self.client[self.database_name]
+            
+            # Verificar conexión
+            await self.db.command("ping")
+            
+            self.logger.info(f"Connected to MongoDB: {self.database_name}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to connect to MongoDB: {e}")
+            raise
+    
+    async def close(self) -> None:
+        """Cierra la conexión"""
+        if self.client:
+            self.client.close()
+            self.logger.info("MongoDB connection closed")
+    
+    def get_collection(self, collection_name: str) -> AsyncIOMotorCollection:
+        """Obtiene una colección específica"""
+        if self.db is None:
+            raise RuntimeError("Database not connected. Call connect() first.")
+        return self.db[collection_name]
+    
+    async def health_check(self) -> bool:
+        """Verifica la salud de la conexión"""
+        try:
+            if self.db is None:
+                return False
+            await self.db.command("ping")
+            return True
+        except Exception as e:
+            self.logger.error(f"Health check failed: {e}")
+            return False

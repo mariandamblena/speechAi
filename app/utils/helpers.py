@@ -5,7 +5,8 @@ Utilidades y helpers para la aplicación
 import random
 import string
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from bson import ObjectId
 
 
 def generate_random_id(length: int = 8) -> str:
@@ -16,6 +17,27 @@ def generate_random_id(length: int = 8) -> str:
 def utcnow() -> datetime:
     """Obtiene datetime UTC actual"""
     return datetime.now(timezone.utc)
+
+
+def serialize_objectid(obj: Any) -> Any:
+    """Serializa ObjectId a string para JSON"""
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {key: serialize_objectid(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_objectid(item) for item in obj]
+    return obj
+
+
+def safe_objectid(id_str: Optional[str]) -> Optional[ObjectId]:
+    """Convierte string a ObjectId de forma segura"""
+    if not id_str:
+        return None
+    try:
+        return ObjectId(id_str)
+    except Exception:
+        return None
 
 
 def format_duration_ms(duration_ms: int) -> str:

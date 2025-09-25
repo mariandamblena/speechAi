@@ -370,8 +370,7 @@ class AccountModel:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convierte a diccionario para MongoDB"""
-        return {
-            "_id": self._id,
+        data = {
             "account_id": self.account_id,
             "account_name": self.account_name,
             "plan_type": self.plan_type.value,
@@ -393,6 +392,12 @@ class AccountModel:
             "expires_at": self.expires_at,
             "last_topup_at": self.last_topup_at,
         }
+        
+        # Solo incluir _id si existe
+        if self._id is not None:
+            data["_id"] = self._id
+            
+        return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AccountModel":
@@ -466,8 +471,7 @@ class BatchModel:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convierte a diccionario para MongoDB"""
-        return {
-            "_id": self._id,
+        data = {
             "account_id": self.account_id,
             "batch_id": self.batch_id,
             "name": self.name,
@@ -486,6 +490,12 @@ class BatchModel:
             "started_at": self.started_at,
             "completed_at": self.completed_at,
         }
+        
+        # Solo incluir _id si existe
+        if self._id is not None:
+            data["_id"] = self._id
+            
+        return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BatchModel":

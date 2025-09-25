@@ -10,6 +10,7 @@ from datetime import datetime
 import logging
 import csv
 import io
+from pydantic import BaseModel
 
 from domain.models import JobModel, AccountModel, BatchModel, ContactInfo, CallPayload
 from domain.enums import JobStatus, AccountStatus, PlanType, CallMode
@@ -18,6 +19,41 @@ from services.batch_service import BatchService
 from services.job_service_api import JobService
 from infrastructure.database_manager import DatabaseManager
 from config.settings import get_settings
+from utils.helpers import serialize_objectid
+
+# ============================================================================
+# REQUEST MODELS (Pydantic)
+# ============================================================================
+
+class CreateAccountRequest(BaseModel):
+    account_id: str
+    account_name: str
+    plan_type: str = "minutes_based"
+    initial_minutes: float = 0.0
+    initial_credits: float = 0.0
+
+class TopupRequest(BaseModel):
+    minutes: Optional[float] = None
+    credits: Optional[float] = None
+
+class CreateBatchRequest(BaseModel):
+    account_id: str
+    name: str
+    description: str = ""
+    priority: int = 1
+
+class CreateJobRequest(BaseModel):
+    job_id: str
+    batch_id: str
+    account_id: str
+    call_mode: str
+    prompt: str
+    contacts: List[ContactInfo]
+    metadata: Optional[Dict[str, Any]] = None
+
+# ============================================================================
+# CONFIGURACIÓN Y STARTUP
+# ============================================================================
 
 # Configurar logging
 logging.basicConfig(
@@ -123,20 +159,20 @@ async def health_check():
 
 @app.post("/api/v1/accounts", response_model=Dict)
 async def create_account(
-    account_id: str,
-    account_name: str,
-    plan_type: str = "minutes_based",
-    initial_minutes: float = 0.0,
-    initial_credits: float = 0.0,
+    request: CreateAccountRequest,
     service: AccountService = Depends(get_account_service)
 ):
     """Crear una nueva cuenta"""
     try:
-        plan_enum = PlanType(plan_type)
+        plan_enum = PlanType(request.plan_type)
         account = await service.create_account(
-            account_id, account_name, plan_enum, initial_minutes, initial_credits
+            request.account_id, 
+            request.account_name, 
+            plan_enum, 
+            request.initial_minutes, 
+            request.initial_credits
         )
-        return {"success": True, "account": account.to_dict()}
+        return {"success": True, "account": serialize_objectid(account.to_dict())}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -152,7 +188,7 @@ async def get_account(
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     
-    return account.to_dict()
+    return serialize_objectid(account.to_dict())
 
 @app.get("/api/v1/accounts/{account_id}/balance")
 async def get_account_balance(
@@ -169,19 +205,18 @@ async def get_account_balance(
 @app.post("/api/v1/accounts/{account_id}/topup")
 async def topup_account(
     account_id: str,
-    minutes: float = None,
-    credits: float = None,
+    request: TopupRequest,
     service: AccountService = Depends(get_account_service)
 ):
     """Agregar minutos o créditos a una cuenta"""
-    if minutes is None and credits is None:
+    if request.minutes is None and request.credits is None:
         raise HTTPException(status_code=400, detail="Must provide either minutes or credits")
     
     success = False
-    if minutes is not None:
-        success = await service.add_minutes(account_id, minutes)
-    if credits is not None:
-        success = await service.add_credits(account_id, credits) or success
+    if request.minutes is not None:
+        success = await service.add_minutes(account_id, request.minutes)
+    if request.credits is not None:
+        success = await service.add_credits(account_id, request.credits) or success
     
     if not success:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -232,16 +267,18 @@ async def activate_account(
 
 @app.post("/api/v1/batches")
 async def create_batch(
-    account_id: str,
-    name: str,
-    description: str = "",
-    priority: int = 1,
+    request: CreateBatchRequest,
     service: BatchService = Depends(get_batch_service)
 ):
     """Crear un nuevo batch"""
     try:
-        batch = await service.create_batch(account_id, name, description, priority)
-        return {"success": True, "batch": batch.to_dict()}
+        batch = await service.create_batch(
+            request.account_id, 
+            request.name, 
+            request.description, 
+            request.priority
+        )
+        return {"success": True, "batch": serialize_objectid(batch.to_dict())}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -255,7 +292,7 @@ async def list_batches(
 ):
     """Listar batches con filtros opcionales"""
     batches = await service.list_batches(account_id, is_active, limit, skip)
-    return [batch.to_dict() for batch in batches]
+    return [serialize_objectid(batch.to_dict()) for batch in batches]
 
 @app.get("/api/v1/batches/{batch_id}")
 async def get_batch(
@@ -267,7 +304,7 @@ async def get_batch(
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
     
-    return batch.to_dict()
+    return serialize_objectid(batch.to_dict())
 
 @app.get("/api/v1/batches/{batch_id}/summary")
 async def get_batch_summary(
@@ -403,7 +440,7 @@ async def list_jobs(
     """Listar jobs con filtros opcionales"""
     status_enum = JobStatus(status) if status else None
     jobs = await service.list_jobs(account_id, batch_id, status_enum, limit, skip)
-    return [job.to_dict() for job in jobs]
+    return [serialize_objectid(job.to_dict()) for job in jobs]
 
 @app.get("/api/v1/jobs/{job_id}")
 async def get_job(
@@ -415,7 +452,8 @@ async def get_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    return job.to_dict()
+    # Serializar ObjectId para JSON
+    return serialize_objectid(job.to_dict())
 
 @app.put("/api/v1/jobs/{job_id}/retry")
 async def retry_job(

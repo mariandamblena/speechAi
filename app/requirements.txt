@@ -12,3 +12,6 @@ pydantic>=2.5.0
 # Additional utilities
 python-multipart>=0.0.6  # Para file uploads
 aiofiles>=23.0.0  # Para manejo de archivos async
+pandas>=2.0.0  # Para procesamiento de Excel
+openpyxl>=3.0.0  # Para leer archivos Excel
+pytz>=2023.3  # Para manejo de zonas horarias (Chile)

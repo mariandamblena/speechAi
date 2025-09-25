@@ -16,6 +16,7 @@ from domain.models import JobModel, AccountModel, BatchModel, ContactInfo, CallP
 from domain.enums import JobStatus, AccountStatus, PlanType, CallMode
 from services.account_service import AccountService
 from services.batch_service import BatchService
+from services.batch_creation_service import BatchCreationService
 from services.job_service_api import JobService
 from infrastructure.database_manager import DatabaseManager
 from config.settings import get_settings
@@ -51,6 +52,12 @@ class CreateJobRequest(BaseModel):
     contacts: List[ContactInfo]
     metadata: Optional[Dict[str, Any]] = None
 
+class ExcelBatchRequest(BaseModel):
+    account_id: str
+    batch_name: Optional[str] = None
+    batch_description: Optional[str] = None
+    allow_duplicates: bool = False
+
 # ============================================================================
 # CONFIGURACIÓN Y STARTUP
 # ============================================================================
@@ -82,18 +89,20 @@ settings = get_settings()
 db_manager = None
 account_service = None
 batch_service = None
+batch_creation_service = None
 job_service = None
 
 @app.on_event("startup")
 async def startup_event():
     """Inicializar servicios al arrancar la API"""
-    global db_manager, account_service, batch_service, job_service
+    global db_manager, account_service, batch_service, batch_creation_service, job_service
     
     db_manager = DatabaseManager(settings.database.uri, settings.database.database)
     await db_manager.connect()
     
     account_service = AccountService(db_manager)
     batch_service = BatchService(db_manager)
+    batch_creation_service = BatchCreationService(db_manager)
     job_service = JobService(db_manager)
     
     logging.info("API initialized successfully")
@@ -111,6 +120,9 @@ async def get_account_service() -> AccountService:
 
 async def get_batch_service() -> BatchService:
     return batch_service
+
+async def get_batch_creation_service() -> BatchCreationService:
+    return batch_creation_service
 
 async def get_job_service() -> JobService:
     return job_service
@@ -422,6 +434,132 @@ async def delete_batch(
         raise HTTPException(status_code=404, detail="Batch not found")
     
     return {"success": True, "message": "Batch deleted"}
+
+
+# ============================================================================
+# ENDPOINTS - EXCEL BATCH CREATION (Implementa lógica del workflow Adquisicion_v3)
+# ============================================================================
+
+@app.post("/api/v1/batches/excel/preview")
+async def preview_excel_batch(
+    file: UploadFile = File(...),
+    account_id: str = Query(..., description="ID de la cuenta"),
+    service: BatchCreationService = Depends(get_batch_creation_service)
+):
+    """
+    Vista previa de archivo Excel sin crear el batch
+    Muestra qué se va a procesar y detecta duplicados
+    """
+    try:
+        # Verificar tipo de archivo
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="Solo se permiten archivos Excel (.xlsx, .xls)")
+        
+        # Leer contenido del archivo
+        content = await file.read()
+        
+        # Generar vista previa
+        preview = await service.get_batch_preview(content, account_id)
+        
+        if not preview['success']:
+            raise HTTPException(status_code=400, detail=preview['error'])
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "preview": preview['preview']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error procesando archivo: {str(e)}")
+
+@app.post("/api/v1/batches/excel/create")
+async def create_batch_from_excel(
+    file: UploadFile = File(...),
+    account_id: str = Query(..., description="ID de la cuenta"),
+    batch_name: Optional[str] = Query(None, description="Nombre del batch"),
+    batch_description: Optional[str] = Query(None, description="Descripción del batch"),
+    allow_duplicates: bool = Query(False, description="Permitir duplicados"),
+    service: BatchCreationService = Depends(get_batch_creation_service)
+):
+    """
+    Crear batch completo desde archivo Excel
+    Implementa toda la lógica del workflow Adquisicion_v3:
+    - Normalización de RUT, teléfonos y fechas chilenas
+    - Agrupación por RUT con acumulación de montos y cuotas
+    - Cálculo de fechas límite según lógica específica
+    - Sistema anti-duplicación
+    - Creación de jobs de llamadas automática
+    """
+    try:
+        # Verificar tipo de archivo
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="Solo se permiten archivos Excel (.xlsx, .xls)")
+        
+        # Leer contenido del archivo
+        content = await file.read()
+        
+        # Crear batch
+        result = await service.create_batch_from_excel(
+            file_content=content,
+            account_id=account_id,
+            batch_name=batch_name or f"Excel Import {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+            batch_description=batch_description,
+            allow_duplicates=allow_duplicates
+        )
+        
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result['error'])
+        
+        return {
+            "success": True,
+            "message": f"Batch '{result['batch_name']}' creado exitosamente",
+            "batch_id": result['batch_id'],
+            "batch_name": result['batch_name'],
+            "stats": {
+                "total_debtors": result['total_debtors'],
+                "total_jobs": result['total_jobs'],
+                "estimated_cost": result['estimated_cost'],
+                "duplicates_found": result['duplicates_found']
+            },
+            "duplicates_preview": result.get('duplicates', []),
+            "created_at": result['created_at']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error creating batch from Excel: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error creando batch: {str(e)}")
+
+@app.get("/api/v1/batches/{batch_id}/status")
+async def get_batch_detailed_status(
+    batch_id: str,
+    account_id: str = Query(..., description="ID de la cuenta"),
+    service: BatchCreationService = Depends(get_batch_creation_service)
+):
+    """
+    Obtener estado detallado de un batch creado desde Excel
+    Incluye estadísticas actualizadas de jobs y progreso
+    """
+    try:
+        status = await service.get_batch_status(batch_id, account_id)
+        
+        if not status:
+            raise HTTPException(status_code=404, detail="Batch no encontrado")
+        
+        return {
+            "success": True,
+            "batch": status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting batch status: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error obteniendo estado del batch: {str(e)}")
 
 
 # ============================================================================

@@ -44,6 +44,32 @@ class DatabaseManager:
             raise RuntimeError("Database not connected. Call connect() first.")
         return self.db[collection_name]
     
+    # Propiedades para acceso directo a colecciones
+    @property
+    def accounts(self) -> AsyncIOMotorCollection:
+        """Colección de cuentas de usuario"""
+        return self.get_collection("accounts")
+    
+    @property
+    def jobs(self) -> AsyncIOMotorCollection:
+        """Colección de jobs de llamadas"""
+        return self.get_collection("call_jobs")
+    
+    @property
+    def batches(self) -> AsyncIOMotorCollection:
+        """Colección de batches"""
+        return self.get_collection("batches")
+    
+    @property
+    def debtors(self) -> AsyncIOMotorCollection:
+        """Colección de deudores (compatible con workflow Adquisicion_v3)"""
+        return self.get_collection("Debtors")
+    
+    @property
+    def call_results(self) -> AsyncIOMotorCollection:
+        """Colección de resultados de llamadas"""
+        return self.get_collection("call_results")
+    
     async def health_check(self) -> bool:
         """Verifica la salud de la conexión"""
         try:

@@ -929,9 +929,9 @@ async def create_google_sheets_batch(
         
         created_batch = await batch_service.create_batch(batch_data)
         
-        # Insertar deudores en colección Debtors (como hace el workflow N8N)
+        # Insertar deudores en colección debtors (como hace el workflow N8N)
         try:
-            collection = db_manager.db["Debtors"]
+            collection = db_manager.db["debtors"]
             for debtor in valid_debtors:
                 debtor['batch_id'] = created_batch.batch_id
                 await collection.replace_one(
@@ -947,8 +947,8 @@ async def create_google_sheets_batch(
         try:
             call_jobs = gs_service.create_call_jobs(valid_debtors)
             
-            # Insertar jobs en call_jobs collection
-            jobs_collection = db_manager.db["call_jobs"]
+            # Insertar jobs en jobs collection
+            jobs_collection = db_manager.db["jobs"]
             created_jobs = []
             
             for job_data in call_jobs:

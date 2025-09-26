@@ -51,8 +51,8 @@ async def analyze_batch_discrepancies(batch_id: str):
         logger.info(f"  - Creado: {batch.get('created_at', 'N/A')}")
         
         # 2. CONTAR DEUDORES REALES
-        logger.info("\n2. Contando deudores en colección 'Debtors'...")
-        debtors_collection = db_manager.get_collection("Debtors")
+        logger.info("\n2. Contando deudores en colección 'debtors'...")
+        debtors_collection = db_manager.get_collection("debtors")
         debtors = await debtors_collection.find({"batch_id": batch_id}).to_list(None)
         
         logger.info(f"👤 Deudores encontrados: {len(debtors)}")
@@ -82,8 +82,8 @@ async def analyze_batch_discrepancies(batch_id: str):
             logger.info(f"  - Tipos teléfono: {dict(phone_types)}")
         
         # 3. CONTAR JOBS REALES
-        logger.info("\n3. Contando jobs en colección 'call_jobs'...")
-        jobs_collection = db_manager.get_collection("call_jobs")
+        logger.info("\n3. Contando jobs en colección 'jobs'...")
+        jobs_collection = db_manager.get_collection("jobs")
         jobs = await jobs_collection.find({"batch_id": batch_id}).to_list(None)
         
         logger.info(f"📞 Jobs encontrados: {len(jobs)}")

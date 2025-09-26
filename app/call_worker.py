@@ -27,8 +27,8 @@ logging.basicConfig(
 )
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-MONGO_DB = os.getenv("MONGO_DB", "Debtors")
-MONGO_COLL_JOBS = os.getenv("MONGO_COLL_JOBS", "call_jobs")
+MONGO_DB = os.getenv("MONGO_DB", "speechai_db")
+MONGO_COLL_JOBS = os.getenv("MONGO_COLL_JOBS", "jobs")
 MONGO_COLL_LOGS = os.getenv("MONGO_COLL_LOGS", "call_logs")
 
 RETELL_API_KEY = os.getenv("RETELL_API_KEY") or ""

@@ -16,8 +16,8 @@ load_dotenv()
 class DatabaseConfig:
     """Configuración de base de datos MongoDB"""
     uri: str = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-    database: str = os.getenv("MONGO_DB", "Debtors")
-    jobs_collection: str = os.getenv("MONGO_COLL_JOBS", "call_jobs")
+    database: str = os.getenv("MONGO_DB", "speechai_db")
+    jobs_collection: str = os.getenv("MONGO_COLL_JOBS", "jobs")
     results_collection: str = os.getenv("MONGO_COLL_RESULTS", "call_results")
     logs_collection: str = os.getenv("MONGO_COLL_LOGS", "call_logs")
     accounts_collection: str = os.getenv("MONGO_COLL_ACCOUNTS", "accounts")

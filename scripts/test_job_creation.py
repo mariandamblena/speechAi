@@ -116,7 +116,7 @@ async def test_job_creation():
             
             # 8. Verificar jobs en DB
             logger.info("--- VERIFICANDO JOBS EN BASE DE DATOS ---")
-            jobs_collection = db_manager.get_collection("call_jobs")
+            jobs_collection = db_manager.get_collection("jobs")
             jobs = await jobs_collection.find({"batch_id": result['batch_id']}).to_list(None)
             
             logger.info(f"Jobs encontrados en DB: {len(jobs)}")

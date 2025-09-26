@@ -34,7 +34,7 @@ async def check_db():
                 print()
         
         # Verificar si hay jobs
-        jobs = await db.get_collection('call_jobs').find().to_list(None)
+        jobs = await db.get_collection('jobs').find().to_list(None)
         print(f"📞 Jobs encontrados: {len(jobs)}")
         
         if jobs:
@@ -48,7 +48,7 @@ async def check_db():
                 print()
         
         # Verificar si hay deudores
-        debtors = await db.get_collection('Debtors').find().to_list(None)
+        debtors = await db.get_collection('debtors').find().to_list(None)
         print(f"👤 Deudores encontrados: {len(debtors)}")
         
         if debtors:

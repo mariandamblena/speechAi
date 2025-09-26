@@ -24,7 +24,7 @@ class JobService:
     
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
-        self.jobs_collection = db_manager.get_collection("call_jobs")
+        self.jobs_collection = db_manager.get_collection("jobs")
         self.logger = logging.getLogger(__name__)
     
     async def list_jobs(

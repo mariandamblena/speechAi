@@ -16,8 +16,8 @@ def reset_job(job_id_str: str):
     
     # Conectar a MongoDB
     client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"))
-    db = client[os.getenv("MONGO_DB", "Debtors")]
-    coll = db[os.getenv("MONGO_COLL_JOBS", "call_jobs")]
+    db = client[os.getenv("MONGO_DB", "speechai_db")]
+    coll = db[os.getenv("MONGO_COLL_JOBS", "jobs")]
     
     try:
         job_id = ObjectId(job_id_str)

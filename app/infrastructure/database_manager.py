@@ -53,7 +53,7 @@ class DatabaseManager:
     @property
     def jobs(self) -> AsyncIOMotorCollection:
         """Colección de jobs de llamadas"""
-        return self.get_collection("call_jobs")
+        return self.get_collection("jobs")
     
     @property
     def batches(self) -> AsyncIOMotorCollection:
@@ -62,8 +62,8 @@ class DatabaseManager:
     
     @property
     def debtors(self) -> AsyncIOMotorCollection:
-        """Colección de deudores (compatible con workflow Adquisicion_v3)"""
-        return self.get_collection("Debtors")
+        """Colección de deudores"""
+        return self.get_collection("debtors")
     
     @property
     def call_results(self) -> AsyncIOMotorCollection:

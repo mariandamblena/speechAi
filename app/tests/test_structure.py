@@ -3,6 +3,12 @@
 Script simple para probar la nueva estructura modular
 """
 
+import sys
+import os
+
+# Agregar la carpeta padre al path para imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 def test_imports():
     """Prueba todos los imports del sistema"""
     print("🧪 Probando imports de la nueva estructura modular...")

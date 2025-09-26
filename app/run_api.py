@@ -17,7 +17,7 @@ def run_api():
     # Ejecutar servidor
     uvicorn.run(
         "api:app",  # Usar string path en lugar del objeto importado
-        host="0.0.0.0",
+        host="127.0.0.1",  # Frontend y backend en la misma PC
         port=8000,
         reload=True,
         log_level="info"

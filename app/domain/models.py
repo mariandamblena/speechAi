@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from bson import ObjectId
+import uuid
 
 from .enums import JobStatus, CallStatus, CallMode, AccountStatus, PlanType
 
@@ -61,12 +62,16 @@ class CallPayload:
 class JobModel:
     """Modelo principal de un job de llamada"""
     _id: Optional[ObjectId] = None
+    job_id: Optional[str] = None  # ID único del job
     account_id: str = ""  # Vinculación con la cuenta
     batch_id: Optional[str] = None  # Opcional: agrupa jobs en lotes
     status: JobStatus = JobStatus.PENDING
     contact: Optional[ContactInfo] = None
     payload: Optional[CallPayload] = None
     mode: CallMode = CallMode.SINGLE
+    
+    # Campo anti-duplicación
+    deduplication_key: Optional[str] = None  # Clave única para evitar duplicados
     
     # Campos de control
     attempts: int = 0
@@ -89,6 +94,23 @@ class JobModel:
     call_id: Optional[str] = None
     call_result: Optional[Dict[str, Any]] = None
     last_error: Optional[str] = None
+    
+    def generate_deduplication_key(self) -> str:
+        """Genera clave única para evitar duplicados"""
+        if not self.contact:
+            return f"job_{self.account_id}_{datetime.utcnow().isoformat()}"
+        
+        # Formato: account_id::rut::batch_id
+        return f"{self.account_id}::{self.contact.dni}::{self.batch_id or 'single'}"
+    
+    def generate_job_id(self) -> str:
+        """Genera un job_id único"""
+        if not self.job_id:
+            # Usar UUID para garantizar unicidad
+            unique_id = str(uuid.uuid4())[:8]  # Primeros 8 caracteres del UUID
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.job_id = f"job_{self.account_id[:8]}_{timestamp}_{unique_id}"
+        return self.job_id
     
     def can_retry(self) -> bool:
         """Verifica si el job puede reintentarse"""
@@ -114,12 +136,14 @@ class JobModel:
             data["_id"] = self._id
             
         data.update({
+            "job_id": self.job_id or self.generate_job_id(),
             "account_id": self.account_id,
             "batch_id": self.batch_id,
             "status": self.status.value,
             "mode": self.mode.value,
             "attempts": self.attempts,
             "max_attempts": self.max_attempts,
+            "deduplication_key": self.deduplication_key or self.generate_deduplication_key(),
         })
         
         if self.contact:
@@ -141,7 +165,7 @@ class JobModel:
         
         # Campos opcionales
         optional_fields = [
-            "reserved_until", "worker_id", "estimated_cost", "reserved_amount",
+            "job_id", "reserved_until", "worker_id", "estimated_cost", "reserved_amount",
             "created_at", "started_at", "completed_at", "failed_at", "updated_at", 
             "call_id", "call_result", "last_error"
         ]
@@ -179,6 +203,7 @@ class JobModel:
         
         return cls(
             _id=data.get("_id"),
+            job_id=data.get("job_id"),
             account_id=data.get("account_id", ""),
             batch_id=data.get("batch_id"),
             status=JobStatus(data.get("status", "pending")),
@@ -187,6 +212,7 @@ class JobModel:
             mode=CallMode(data.get("mode", "single")),
             attempts=data.get("attempts", 0),
             max_attempts=data.get("max_attempts", 3),
+            deduplication_key=data.get("deduplication_key"),
             reserved_until=data.get("reserved_until"),
             worker_id=data.get("worker_id"),
             estimated_cost=data.get("estimated_cost"),
@@ -370,8 +396,7 @@ class AccountModel:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convierte a diccionario para MongoDB"""
-        return {
-            "_id": self._id,
+        data = {
             "account_id": self.account_id,
             "account_name": self.account_name,
             "plan_type": self.plan_type.value,
@@ -393,6 +418,12 @@ class AccountModel:
             "expires_at": self.expires_at,
             "last_topup_at": self.last_topup_at,
         }
+        
+        # Solo incluir _id si existe
+        if self._id is not None:
+            data["_id"] = self._id
+            
+        return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AccountModel":
@@ -419,6 +450,98 @@ class AccountModel:
             updated_at=data.get("updated_at"),
             expires_at=data.get("expires_at"),
             last_topup_at=data.get("last_topup_at"),
+        )
+
+
+@dataclass
+class DebtorModel:
+    """Modelo para deudores consolidados (equivale a la lógica del workflow Adquisicion_v3)"""
+    _id: Optional[ObjectId] = None
+    batch_id: str = ""
+    rut: str = ""  # RUT sin formato (ej: "123456789K")
+    rut_fmt: str = ""  # RUT con formato (ej: "12.345.678-9")
+    nombre: str = ""
+    origen_empresa: Optional[str] = None
+    
+    # Información de contacto (teléfonos normalizados)
+    phones: Dict[str, Optional[str]] = field(default_factory=lambda: {
+        "raw_mobile": None,
+        "raw_landline": None,
+        "mobile_e164": None,
+        "landline_e164": None,
+        "best_e164": None
+    })
+    
+    # Datos consolidados por RUT
+    cantidad_cupones: int = 0  # Cantidad de deudas/cuotas
+    monto_total: float = 0.0  # Total en pesos (no centavos)
+    
+    # Fechas calculadas según lógica del workflow
+    fecha_limite: Optional[str] = None  # fecha_vencimiento_max + dias_retraso + 3 días
+    fecha_maxima: Optional[str] = None  # fecha_vencimiento_min + dias_retraso + 7 días
+    
+    # Número de teléfono seleccionado para llamadas
+    to_number: Optional[str] = None
+    
+    # Clave única para identificar este deudor en el batch
+    key: str = ""  # Formato: batch_id::rut
+    
+    # Timestamps
+    created_at: Optional[datetime] = None
+    
+    def generate_key(self) -> str:
+        """Genera la clave única para este deudor"""
+        return f"{self.batch_id}::{self.rut}"
+    
+    def get_best_phone(self) -> Optional[str]:
+        """Selecciona el mejor número de teléfono disponible"""
+        return (
+            self.phones.get("mobile_e164") or 
+            self.phones.get("landline_e164") or 
+            self.phones.get("best_e164")
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convierte a diccionario para MongoDB"""
+        data = {
+            "batch_id": self.batch_id,
+            "rut": self.rut,
+            "rut_fmt": self.rut_fmt,
+            "nombre": self.nombre,
+            "origen_empresa": self.origen_empresa,
+            "phones": self.phones,
+            "cantidad_cupones": self.cantidad_cupones,
+            "monto_total": self.monto_total,
+            "fecha_limite": self.fecha_limite,
+            "fecha_maxima": self.fecha_maxima,
+            "to_number": self.to_number or self.get_best_phone(),
+            "key": self.key or self.generate_key(),
+            "created_at": self.created_at or datetime.utcnow(),
+        }
+        
+        if self._id is not None:
+            data["_id"] = self._id
+            
+        return data
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DebtorModel":
+        """Crea un DebtorModel desde un diccionario de MongoDB"""
+        return cls(
+            _id=data.get("_id"),
+            batch_id=data.get("batch_id", ""),
+            rut=data.get("rut", ""),
+            rut_fmt=data.get("rut_fmt", ""),
+            nombre=data.get("nombre", ""),
+            origen_empresa=data.get("origen_empresa"),
+            phones=data.get("phones", {}),
+            cantidad_cupones=data.get("cantidad_cupones", 0),
+            monto_total=data.get("monto_total", 0.0),
+            fecha_limite=data.get("fecha_limite"),
+            fecha_maxima=data.get("fecha_maxima"),
+            to_number=data.get("to_number"),
+            key=data.get("key", ""),
+            created_at=data.get("created_at"),
         )
 
 
@@ -466,8 +589,7 @@ class BatchModel:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convierte a diccionario para MongoDB"""
-        return {
-            "_id": self._id,
+        data = {
             "account_id": self.account_id,
             "batch_id": self.batch_id,
             "name": self.name,
@@ -486,6 +608,12 @@ class BatchModel:
             "started_at": self.started_at,
             "completed_at": self.completed_at,
         }
+        
+        # Solo incluir _id si existe
+        if self._id is not None:
+            data["_id"] = self._id
+            
+        return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BatchModel":

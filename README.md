@@ -2,6 +2,29 @@
 
 Sistema distribuido de procesamiento de llamadas automatizadas que replica workflows de n8n en Python, utilizando Retell AI para gestión completa del ciclo de vida de llamadas de cobranza.
 
+## 📁 Estructura del Proyecto
+
+```
+speechAi_backend/
+├── app/                     # 🚀 Código de producción
+│   ├── api.py              # Endpoints principales
+│   ├── run_api.py          # Servidor FastAPI
+│   ├── call_worker.py      # Worker de llamadas
+│   ├── config/             # Configuración
+│   ├── domain/             # Modelos y enums
+│   ├── infrastructure/     # DB y servicios externos
+│   ├── services/           # Lógica de negocio
+│   ├── utils/              # Utilidades generales
+│   ├── tests/              # 🧪 Tests aislados
+│   └── scripts/            # 🛠️ Scripts de desarrollo
+├── docs/                   # 📚 Documentación
+│   └── workflows/          # Workflows de n8n (JSON)
+├── TESTING_GUIDE.md        # Guía de tests y scripts
+└── STRUCTURE.md            # Documentación de estructura
+```
+
+Ver [TESTING_GUIDE.md](TESTING_GUIDE.md) para instrucciones detalladas de testing.
+
 ## 🏗️ Arquitectura General
 
 Este sistema está diseñado para:

@@ -20,6 +20,8 @@ class DatabaseConfig:
     jobs_collection: str = os.getenv("MONGO_COLL_JOBS", "call_jobs")
     results_collection: str = os.getenv("MONGO_COLL_RESULTS", "call_results")
     logs_collection: str = os.getenv("MONGO_COLL_LOGS", "call_logs")
+    accounts_collection: str = os.getenv("MONGO_COLL_ACCOUNTS", "accounts")
+    batches_collection: str = os.getenv("MONGO_COLL_BATCHES", "batches")
     max_pool_size: int = int(os.getenv("MONGO_MAX_POOL_SIZE", "50"))
 
 

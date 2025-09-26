@@ -5,7 +5,12 @@ Crea cuentas de ejemplo y datos de prueba
 
 import asyncio
 import logging
+import sys
+import os
 from datetime import datetime
+
+# Agregar la carpeta padre al path para imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from infrastructure.database_manager import DatabaseManager
 from services.account_service import AccountService

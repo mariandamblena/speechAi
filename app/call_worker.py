@@ -196,8 +196,9 @@ class RetellClient:
 # Job Store
 # ----------------------------
 class JobStore:
-    def __init__(self, coll):
+    def __init__(self, coll, db=None):
         self.coll = coll
+        self.db = db
 
     def claim_one(self, worker_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -430,63 +431,62 @@ class CallOrchestrator:
         self.retell = retell
 
     def _pick_next_phone(self, job: Dict[str, Any]) -> Optional[str]:
-        # Adaptado para la estructura real de tus datos
-        # Estructura esperada: {"to_number": "+56991975219", "try_phones": [...]}
-        
+        # Adaptado para la estructura real con contact.phones y next_phone_index
         job_id = job.get('_id')
         print(f"[DEBUG] [{job_id}] _pick_next_phone iniciado")
-        print(f"[DEBUG] [{job_id}] to_number: {job.get('to_number')}")
-        print(f"[DEBUG] [{job_id}] try_phones: {job.get('try_phones')}")
-        print(f"[DEBUG] [{job_id}] last_phone_tried: {job.get('last_phone_tried')}")
         
-        # Primero intentar to_number principal
-        if job.get("to_number") and not job.get("last_phone_tried"):
-            phone = job["to_number"]
-            print(f"[DEBUG] [{job_id}] Usando to_number principal: {phone}")
-            return phone
+        # Obtener datos del contacto
+        contact = job.get('contact', {})
+        phones = contact.get('phones', [])
+        next_phone_index = contact.get('next_phone_index', 0)
         
-        # Luego intentar try_phones array
-        try_phones = job.get("try_phones") or []
-        last_tried = job.get("last_phone_tried")
+        print(f"[DEBUG] [{job_id}] phones disponibles: {phones}")
+        print(f"[DEBUG] [{job_id}] next_phone_index: {next_phone_index}")
         
-        for phone in try_phones:
-            if phone != last_tried:
-                print(f"[DEBUG] [{job_id}] Usando try_phone: {phone}")
-                return phone
+        # Verificar si hay teléfonos disponibles
+        if not phones:
+            print(f"[DEBUG] [{job_id}] ❌ No hay teléfonos en contact.phones")
+            return None
         
-        print(f"[DEBUG] [{job_id}] ❌ No hay más teléfonos disponibles")
-        return None
+        # Verificar si el índice está dentro del rango
+        if next_phone_index >= len(phones):
+            print(f"[DEBUG] [{job_id}] ❌ next_phone_index ({next_phone_index}) fuera de rango (max: {len(phones)-1})")
+            return None
+        
+        # Obtener el teléfono actual
+        phone = phones[next_phone_index]
+        print(f"[DEBUG] [{job_id}] ✅ Usando teléfono: {phone} (índice {next_phone_index})")
+        return phone
 
     def _advance_phone(self, job):
-        # Marcar el teléfono actual como intentado y avanzar
-        current_phone = self._pick_next_phone(job)
-        if current_phone:
-            # Actualizar last_phone_tried para seguir el progreso
-            try:
-                self.job_store.coll.update_one(
-                    {"_id": job["_id"]},
-                    {"$set": {
-                        "last_phone_tried": current_phone,
-                        "updated_at": utcnow()
-                    }}
-                )
-            except Exception as e:
-                logging.warning(f"Error actualizando last_phone_tried: {e}")
+        # Avanzar al siguiente teléfono en la lista
+        contact = job.get('contact', {})
+        phones = contact.get('phones', [])
+        current_index = contact.get('next_phone_index', 0)
+        
+        job_id = job.get('_id')
+        print(f"[DEBUG] [{job_id}] _advance_phone: índice actual {current_index}, total phones: {len(phones)}")
+        
+        # Avanzar al siguiente índice
+        next_index = current_index + 1
+        
+        try:
+            # Actualizar el índice en la base de datos
+            self.job_store.coll.update_one(
+                {"_id": job["_id"]},
+                {"$set": {
+                    "contact.next_phone_index": next_index,
+                    "updated_at": utcnow()
+                }}
+            )
+            print(f"[DEBUG] [{job_id}] next_phone_index actualizado a {next_index}")
+        except Exception as e:
+            logging.warning(f"Error actualizando next_phone_index: {e}")
         
         # Verificar si quedan más teléfonos
-        to_number = job.get("to_number")
-        try_phones = job.get("try_phones") or []
-        last_tried = job.get("last_phone_tried")
-        
-        remaining_phones = []
-        if to_number and to_number != last_tried:
-            remaining_phones.append(to_number)
-        for phone in try_phones:
-            if phone != last_tried:
-                remaining_phones.append(phone)
-        
-        if not remaining_phones:
+        if next_index >= len(phones):
             # No quedan teléfonos: fallo terminal
+            print(f"[DEBUG] [{job_id}] ❌ No quedan más teléfonos (índice {next_index} >= {len(phones)})")
             self.job_store.mark_failed(job["_id"], "No quedan teléfonos por intentar", terminal=True)
 
     def _context_from_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
@@ -528,6 +528,60 @@ class CallOrchestrator:
         if call_result and call_result.get('success'):
             print(f"[DEBUG] [{job_id}] ✅ Job ya tiene resultado exitoso, saltando")
             self.job_store.mark_done(job_id, call_result.get('details', {}))
+            return
+        
+        # 🔥 VALIDACIÓN DE BALANCE - CRÍTICA PARA SAAS
+        account_id = job.get('account_id')
+        if account_id:
+            try:
+                # Acceder a la base de datos
+                if self.job_store.db is not None:
+                    account_doc = self.job_store.db.accounts.find_one({"account_id": account_id})
+                else:
+                    # Fallback usando la colección existente
+                    db = self.job_store.coll.database
+                    account_doc = db.accounts.find_one({"account_id": account_id})
+                
+                if account_doc:
+                    plan_type = account_doc.get('plan_type')
+                    
+                    # Validación según tipo de plan
+                    has_balance = True
+                    error_msg = ""
+                    
+                    if plan_type == "unlimited":
+                        has_balance = True
+                    elif plan_type == "minutes_based":
+                        minutes_remaining = account_doc.get('minutes_remaining', 0)
+                        has_balance = minutes_remaining > 0
+                        if not has_balance:
+                            error_msg = f"Sin minutos disponibles (restantes: {minutes_remaining})"
+                    elif plan_type == "credit_based":
+                        credit_balance = account_doc.get('credit_balance', 0)
+                        credit_reserved = account_doc.get('credit_reserved', 0)
+                        cost_per_call = account_doc.get('cost_per_call_setup', 0.02)
+                        credit_available = max(0, credit_balance - credit_reserved)
+                        has_balance = credit_available >= cost_per_call
+                        if not has_balance:
+                            error_msg = f"Sin créditos suficientes (disponibles: {credit_available:.2f}, necesarios: {cost_per_call:.2f})"
+                    
+                    if not has_balance:
+                        print(f"[ERROR] [{job_id}] 🚫 SALDO INSUFICIENTE - Plan: {plan_type}, {error_msg}")
+                        self.job_store.mark_failed(job_id, f"Saldo insuficiente: {error_msg}", terminal=True)
+                        return
+                    else:
+                        print(f"[DEBUG] [{job_id}] ✅ Balance suficiente - Plan: {plan_type}")
+                else:
+                    print(f"[ERROR] [{job_id}] Cuenta {account_id} no encontrada")
+                    self.job_store.mark_failed(job_id, f"Cuenta {account_id} no encontrada", terminal=True)
+                    return
+            except Exception as e:
+                print(f"[ERROR] [{job_id}] Error validando balance: {e}")
+                self.job_store.mark_failed(job_id, f"Error validando balance: {e}", terminal=True)
+                return
+        else:
+            print(f"[ERROR] [{job_id}] Sin account_id en job")
+            self.job_store.mark_failed(job_id, "Sin account_id especificado", terminal=True)
             return
         
         phone = self._pick_next_phone(job)
@@ -701,7 +755,7 @@ def main():
         return
 
     print(f"[DEBUG] Conectando a MongoDB...")
-    store = JobStore(coll_jobs)
+    store = JobStore(coll_jobs, db)
     
     print(f"[DEBUG] Inicializando cliente Retell...")
     retell = RetellClient(RETELL_API_KEY, RETELL_BASE_URL)

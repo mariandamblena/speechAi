@@ -6,13 +6,15 @@ import sys
 import os
 
 # Agregar el directorio app al path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'app'))
 
 from infrastructure.database_manager import DatabaseManager
+from config.settings import get_settings
 
 async def check_db():
     try:
-        db = DatabaseManager()
+        settings = get_settings()
+        db = DatabaseManager(settings.database.uri, settings.database.database)
         await db.connect()
         
         print("=== VERIFICACIÓN DE BASE DE DATOS ===\n")
@@ -46,7 +48,7 @@ async def check_db():
                 print()
         
         # Verificar si hay deudores
-        debtors = await db.get_collection('debtors').find().to_list(None)
+        debtors = await db.get_collection('Debtors').find().to_list(None)
         print(f"👤 Deudores encontrados: {len(debtors)}")
         
         if debtors:

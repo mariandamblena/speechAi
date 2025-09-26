@@ -17,6 +17,7 @@ from domain.enums import JobStatus, AccountStatus, PlanType, CallMode
 from services.account_service import AccountService
 from services.batch_service import BatchService
 from services.batch_creation_service import BatchCreationService
+from services.acquisition_batch_service import AcquisitionBatchService
 from services.job_service_api import JobService
 from infrastructure.database_manager import DatabaseManager
 from config.settings import get_settings
@@ -90,12 +91,13 @@ db_manager = None
 account_service = None
 batch_service = None
 batch_creation_service = None
+acquisition_batch_service = None
 job_service = None
 
 @app.on_event("startup")
 async def startup_event():
     """Inicializar servicios al arrancar la API"""
-    global db_manager, account_service, batch_service, batch_creation_service, job_service
+    global db_manager, account_service, batch_service, batch_creation_service, acquisition_batch_service, job_service
     
     db_manager = DatabaseManager(settings.database.uri, settings.database.database)
     await db_manager.connect()
@@ -103,6 +105,7 @@ async def startup_event():
     account_service = AccountService(db_manager)
     batch_service = BatchService(db_manager)
     batch_creation_service = BatchCreationService(db_manager)
+    acquisition_batch_service = AcquisitionBatchService(db_manager)
     job_service = JobService(db_manager)
     
     logging.info("API initialized successfully")
@@ -123,6 +126,9 @@ async def get_batch_service() -> BatchService:
 
 async def get_batch_creation_service() -> BatchCreationService:
     return batch_creation_service
+
+async def get_acquisition_batch_service() -> AcquisitionBatchService:
+    return acquisition_batch_service
 
 async def get_job_service() -> JobService:
     return job_service
@@ -482,50 +488,63 @@ async def create_batch_from_excel(
     batch_name: Optional[str] = Query(None, description="Nombre del batch"),
     batch_description: Optional[str] = Query(None, description="Descripción del batch"),
     allow_duplicates: bool = Query(False, description="Permitir duplicados"),
-    service: BatchCreationService = Depends(get_batch_creation_service)
+    processing_type: str = Query("basic", description="Tipo de procesamiento: 'basic' o 'acquisition'"),
+    basic_service: BatchCreationService = Depends(get_batch_creation_service),
+    acquisition_service: AcquisitionBatchService = Depends(get_acquisition_batch_service)
 ):
     """
-    Crear batch completo desde archivo Excel
-    Implementa toda la lógica del workflow Adquisicion_v3:
-    - Normalización de RUT, teléfonos y fechas chilenas
-    - Agrupación por RUT con acumulación de montos y cuotas
-    - Cálculo de fechas límite según lógica específica
-    - Sistema anti-duplicación
-    - Creación de jobs de llamadas automática
+    Crear batch completo desde archivo Excel con opción de procesamiento
+    
+    Tipos de procesamiento:
+    - 'basic': Procesamiento simple y directo (por defecto)
+    - 'acquisition': Lógica avanzada con agrupación por RUT, normalización chilena,
+                     cálculo de fechas límite según workflow N8N de adquisición
     """
     try:
         # Verificar tipo de archivo
         if not file.filename.endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="Solo se permiten archivos Excel (.xlsx, .xls)")
         
+        # Verificar tipo de procesamiento
+        if processing_type not in ["basic", "acquisition"]:
+            raise HTTPException(
+                status_code=400, 
+                detail="processing_type debe ser 'basic' o 'acquisition'"
+            )
+        
         # Leer contenido del archivo
         content = await file.read()
         
-        # Crear batch
-        result = await service.create_batch_from_excel(
-            file_content=content,
-            account_id=account_id,
-            batch_name=batch_name or f"Excel Import {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
-            batch_description=batch_description,
-            allow_duplicates=allow_duplicates
-        )
+        # Seleccionar servicio según tipo de procesamiento
+        if processing_type == "acquisition":
+            # Usar lógica de adquisición avanzada
+            result = await acquisition_service.create_batch_from_excel_acquisition(
+                file_content=content,
+                account_id=account_id,
+                batch_name=batch_name or f"Acquisition Batch {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                batch_description=batch_description,
+                allow_duplicates=allow_duplicates
+            )
+        else:
+            # Usar lógica básica (por defecto)
+            result = await basic_service.create_batch_from_excel(
+                file_content=content,
+                account_id=account_id,
+                batch_name=batch_name or f"Basic Batch {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                batch_description=batch_description,
+                allow_duplicates=allow_duplicates
+            )
         
         if not result['success']:
             raise HTTPException(status_code=400, detail=result['error'])
         
         return {
             "success": True,
-            "message": f"Batch '{result['batch_name']}' creado exitosamente",
+            "message": f"Batch '{result['batch_name']}' creado exitosamente con procesamiento {processing_type}",
             "batch_id": result['batch_id'],
             "batch_name": result['batch_name'],
-            "stats": {
-                "total_debtors": result['total_debtors'],
-                "total_jobs": result['total_jobs'],
-                "estimated_cost": result['estimated_cost'],
-                "duplicates_found": result['duplicates_found']
-            },
-            "duplicates_preview": result.get('duplicates', []),
-            "created_at": result['created_at']
+            "processing_type": result.get('processing_type', processing_type),
+            "stats": result.get('stats', {})
         }
         
     except HTTPException:
@@ -689,6 +708,322 @@ async def get_call_history(
     
     history = await service.get_call_history(filters, limit, skip)
     return history
+
+
+# ============================================================================
+# GOOGLE SHEETS ENDPOINTS - Integración del workflow de adquisición
+# ============================================================================
+
+class GoogleSheetsRequest(BaseModel):
+    account_id: str
+    spreadsheet_id: str
+    sheet_name: str = "Sheet1"
+    batch_name: Optional[str] = None
+    batch_description: Optional[str] = ""
+    credentials_json_path: Optional[str] = None
+    token_path: Optional[str] = None
+
+@app.post("/api/v1/batches/googlesheets/preview")
+async def preview_google_sheets_batch(request: GoogleSheetsRequest):
+    """
+    Preview de batch desde Google Sheets
+    Procesa la hoja y muestra resumen sin crear el batch
+    """
+    try:
+        from services.google_sheets_service import GoogleSheetsService
+        
+        logger.info(f"Previewing Google Sheets batch for account: {request.account_id}")
+        
+        # Verificar cuenta
+        db_manager = DatabaseManager()
+        account_service = AccountService(db_manager)
+        account = await account_service.get_account(request.account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        # Inicializar servicio Google Sheets
+        gs_service = GoogleSheetsService()
+        
+        # Autenticar (si se proporcionan credenciales)
+        if request.credentials_json_path:
+            authenticated = gs_service.authenticate(
+                request.credentials_json_path, 
+                request.token_path
+            )
+            if not authenticated:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Failed to authenticate with Google Sheets API"
+                )
+        
+        # Leer datos de la hoja
+        try:
+            rows = gs_service.read_sheet_data(request.spreadsheet_id, request.sheet_name)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Error reading Google Sheets data: {str(e)}"
+            )
+        
+        if not rows:
+            raise HTTPException(
+                status_code=400,
+                detail="No data found in the specified sheet"
+            )
+        
+        # Procesar datos (sin guardar)
+        try:
+            debtors = gs_service.process_debt_collection_data(rows)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Error processing sheet data: {str(e)}"
+            )
+        
+        # Generar estadísticas de preview
+        total_debtors = len(debtors)
+        total_coupons = sum(d.get('cantidad_cupones', 0) for d in debtors)
+        total_amount = sum(d.get('monto_total', 0) for d in debtors)
+        
+        # Estadísticas de teléfonos
+        with_mobile = sum(1 for d in debtors if d['phones'].get('mobile_e164'))
+        with_landline = sum(1 for d in debtors if d['phones'].get('landline_e164'))
+        with_any_phone = sum(1 for d in debtors if d['phones'].get('best_e164'))
+        
+        # Muestra de datos (primeros 5)
+        sample_data = debtors[:5] if debtors else []
+        
+        return {
+            "success": True,
+            "preview": {
+                "spreadsheet_id": request.spreadsheet_id,
+                "sheet_name": request.sheet_name,
+                "raw_rows": len(rows),
+                "processed_debtors": total_debtors,
+                "statistics": {
+                    "total_coupons": total_coupons,
+                    "total_amount_pesos": total_amount,
+                    "with_mobile_phone": with_mobile,
+                    "with_landline_phone": with_landline,
+                    "with_any_phone": with_any_phone,
+                    "without_phone": total_debtors - with_any_phone
+                },
+                "sample_data": sample_data
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in Google Sheets preview: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/batches/googlesheets/create")
+async def create_google_sheets_batch(
+    request: GoogleSheetsRequest,
+    allow_duplicates: bool = Query(False, description="Allow duplicate RUTs in processing")
+):
+    """
+    Crea batch completo desde Google Sheets
+    Replica exactamente la lógica del workflow N8N de adquisición
+    """
+    try:
+        from services.google_sheets_service import GoogleSheetsService
+        
+        logger.info(f"Creating Google Sheets batch for account: {request.account_id}")
+        
+        # Verificar cuenta y balance
+        db_manager = DatabaseManager()
+        account_service = AccountService(db_manager)
+        account = await account_service.get_account(request.account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        # Inicializar servicios
+        gs_service = GoogleSheetsService()
+        batch_service = BatchService(db_manager)
+        job_service = JobService(db_manager)
+        
+        # Autenticar Google Sheets
+        if request.credentials_json_path:
+            authenticated = gs_service.authenticate(
+                request.credentials_json_path, 
+                request.token_path
+            )
+            if not authenticated:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Failed to authenticate with Google Sheets API"
+                )
+        
+        # Leer y procesar datos
+        try:
+            rows = gs_service.read_sheet_data(request.spreadsheet_id, request.sheet_name)
+            if not rows:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No data found in the specified sheet"
+                )
+            
+            debtors = gs_service.process_debt_collection_data(rows)
+            if not debtors:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No valid debtors found after processing"
+                )
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Error processing sheet data: {str(e)}"
+            )
+        
+        # Filtrar deudores sin teléfono válido
+        valid_debtors = [d for d in debtors if d.get('to_number')]
+        if not valid_debtors:
+            raise HTTPException(
+                status_code=400,
+                detail="No debtors with valid phone numbers found"
+            )
+        
+        # Detectar duplicados por RUT si no se permiten
+        if not allow_duplicates:
+            seen_ruts = set()
+            unique_debtors = []
+            duplicates = []
+            
+            for debtor in valid_debtors:
+                rut = debtor['rut']
+                if rut in seen_ruts:
+                    duplicates.append(rut)
+                else:
+                    seen_ruts.add(rut)
+                    unique_debtors.append(debtor)
+            
+            if duplicates:
+                logger.warning(f"Found {len(duplicates)} duplicate RUTs")
+                # No rechazar todo, solo procesar únicos
+                valid_debtors = unique_debtors
+        
+        # Crear batch
+        batch_name = request.batch_name or f"GoogleSheets-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        
+        batch_data = BatchModel(
+            batch_id=f"gs-{request.account_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            account_id=request.account_id,
+            name=batch_name,
+            description=request.batch_description or f"Google Sheets import from {request.spreadsheet_id}",
+            total_jobs=len(valid_debtors),
+            priority=1,
+            status="active",
+            source_type="google_sheets",
+            source_config={
+                "spreadsheet_id": request.spreadsheet_id,
+                "sheet_name": request.sheet_name,
+                "original_rows": len(rows),
+                "processed_debtors": len(debtors),
+                "valid_debtors": len(valid_debtors)
+            },
+            created_at=datetime.now()
+        )
+        
+        created_batch = await batch_service.create_batch(batch_data)
+        
+        # Insertar deudores en colección Debtors (como hace el workflow N8N)
+        try:
+            collection = db_manager.db["Debtors"]
+            for debtor in valid_debtors:
+                debtor['batch_id'] = created_batch.batch_id
+                await collection.replace_one(
+                    {"rut": debtor['rut']},
+                    debtor,
+                    upsert=True
+                )
+        except Exception as e:
+            logger.error(f"Error inserting debtors: {e}")
+            # No fallar por esto, continuar con jobs
+        
+        # Crear jobs de llamadas
+        try:
+            call_jobs = gs_service.create_call_jobs(valid_debtors)
+            
+            # Insertar jobs en call_jobs collection
+            jobs_collection = db_manager.db["call_jobs"]
+            created_jobs = []
+            
+            for job_data in call_jobs:
+                job_data['batch_id'] = created_batch.batch_id
+                
+                # Crear modelo de job
+                job = JobModel(
+                    job_id=job_data['job_id'],
+                    batch_id=created_batch.batch_id,
+                    account_id=request.account_id,
+                    call_mode="voice",
+                    contact_info=ContactInfo(
+                        phone_number=job_data['to_number'],
+                        name=job_data['nombre'],
+                        additional_data={
+                            'rut': job_data['rut'],
+                            'rut_fmt': job_data['rut_fmt'],
+                            'origen_empresa': job_data['origen_empresa'],
+                            'cantidad_cupones': job_data['cantidad_cupones'],
+                            'monto_total': job_data['monto_total'],
+                            'fecha_limite': job_data['fecha_limite'],
+                            'fecha_maxima': job_data['fecha_maxima']
+                        }
+                    ),
+                    priority=1,
+                    max_attempts=3,
+                    status=JobStatus.PENDING,
+                    created_at=datetime.now()
+                )
+                
+                created_job = await job_service.create_job(job)
+                created_jobs.append(created_job)
+                
+                # También insertar en call_jobs collection (para compatibilidad N8N)
+                await jobs_collection.replace_one(
+                    {"job_id": job_data['job_id']},
+                    job_data,
+                    upsert=True
+                )
+                
+        except Exception as e:
+            logger.error(f"Error creating jobs: {e}")
+            # Rollback batch si falló la creación de jobs
+            await batch_service.delete_batch(created_batch.batch_id)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error creating call jobs: {str(e)}"
+            )
+        
+        # Actualizar conteo de jobs en batch
+        await batch_service.update_batch_stats(created_batch.batch_id)
+        
+        # Estadísticas finales
+        total_amount = sum(d.get('monto_total', 0) for d in valid_debtors)
+        with_phone_count = len(valid_debtors)
+        
+        return {
+            "success": True,
+            "batch": serialize_objectid(created_batch.__dict__),
+            "statistics": {
+                "original_rows": len(rows),
+                "processed_debtors": len(debtors),
+                "valid_debtors": len(valid_debtors),
+                "created_jobs": len(created_jobs),
+                "total_amount_pesos": total_amount,
+                "duplicates_found": len(debtors) - len(valid_debtors) if not allow_duplicates else 0
+            },
+            "message": f"Successfully created batch '{batch_name}' with {len(created_jobs)} call jobs"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating Google Sheets batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

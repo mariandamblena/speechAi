@@ -1,0 +1,1 @@
+# Implementaciones específicas de casos de uso

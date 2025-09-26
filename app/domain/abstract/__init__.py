@@ -1,0 +1,1 @@
+# Abstracciones base para diferentes casos de uso

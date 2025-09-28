@@ -47,3 +47,4 @@ class PlanType(Enum):
     MINUTES_BASED = "minutes_based"    # Por minutos comprados
     CREDIT_BASED = "credit_based"      # Por créditos en dinero
     UNLIMITED = "unlimited"            # Sin límites
+

@@ -1,5 +1,5 @@
 """
-Configuración centralizada del sistema
+Configuración centralizada del sistema. Desde aca defino todas las variables 
 Siguiendo el principio de configuración única (Single Source of Truth)
 """
 
@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True) #frozen para que sea inmutable
 class DatabaseConfig:
     """Configuración de base de datos MongoDB"""
     uri: str = os.getenv("MONGO_URI", "mongodb://localhost:27017")
@@ -80,6 +80,10 @@ class AppSettings:
             logging=LoggingConfig()
         )
     
+
+    """'AppSettings' significa que este método devuelve un objeto de tipo AppSettings.Como la clase AppSettings aún no está completamente definida en el momento de escribir la función, se pone entre comillas ('AppSettings') → esto se llama forward reference.
+"""
+
     def validate(self) -> None:
         """Valida que la configuración sea correcta"""
         errors = []
@@ -113,3 +117,14 @@ def get_settings() -> AppSettings:
         settings = AppSettings.load()
         settings.validate()
     return settings
+
+""""
+# en cualquier módulo de tu app
+from config import get_settings
+
+conf = get_settings()
+print(conf.database.uri)       # Accede a la URI de MongoDB
+print(conf.retell.api_key)     # Accede a la API key de Retell
+
+osea en cualquier parte del codigo llamo a get_settings() y me devuelve la configuración validada
+"""

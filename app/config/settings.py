@@ -38,7 +38,7 @@ class RetellConfig:
 @dataclass(frozen=True)
 class WorkerConfig:
     """Configuración de workers"""
-    count: int = int(os.getenv("WORKER_COUNT", "3"))
+    count: int = int(os.getenv("WORKER_COUNT", "6"))  # ← Aumentado para mayor paralelización
     lease_seconds: int = int(os.getenv("LEASE_SECONDS", "120"))
     max_attempts: int = int(os.getenv("MAX_ATTEMPTS", "3"))
     retry_delay_minutes: int = int(os.getenv("RETRY_DELAY_MINUTES", "30"))

@@ -28,7 +28,7 @@ logging.basicConfig(
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "speechai_db")
-MONGO_COLL_JOBS = os.getenv("MONGO_COLL_JOBS", "jobs")
+MONGO_COLL_JOBS = os.getenv("MONGO_COLL_JOBS", "jobs")  # Cambiar default a "jobs"
 MONGO_COLL_LOGS = os.getenv("MONGO_COLL_LOGS", "call_logs")
 
 RETELL_API_KEY = os.getenv("RETELL_API_KEY") or ""
@@ -495,7 +495,14 @@ class CallOrchestrator:
         Usa el payload.to_retell_context() si existe, sino fallback a lógica legacy.
         IMPORTANTE: Retell requiere que TODOS los valores sean strings.
         """
-        from app.utils.timezone_utils import chile_time_display
+        try:
+            from utils.timezone_utils import chile_time_display
+        except ImportError:
+            # Fallback si no se puede importar la utilidad
+            import datetime
+            def chile_time_display():
+                return datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p CLT")
+        
         now_chile = chile_time_display()  # Usa nuestra utilidad centralizada
         
         # Intentar usar el payload del job (nueva arquitectura)
@@ -597,7 +604,10 @@ class CallOrchestrator:
                     if plan_type == "unlimited":
                         has_balance = True
                     elif plan_type == "minutes_based":
-                        minutes_remaining = account_doc.get('minutes_remaining', 0)
+                        minutes_purchased = account_doc.get('minutes_purchased', 0)
+                        minutes_used = account_doc.get('minutes_used', 0) 
+                        minutes_reserved = account_doc.get('minutes_reserved', 0)
+                        minutes_remaining = max(0, minutes_purchased - minutes_used - minutes_reserved)
                         has_balance = minutes_remaining > 0
                         if not has_balance:
                             error_msg = f"Sin minutos disponibles (restantes: {minutes_remaining})"

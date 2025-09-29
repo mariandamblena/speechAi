@@ -76,8 +76,35 @@ class CallPayload(BasePayload):
     
     def _format_date_for_speech(self, iso_date: str) -> str:
         """Convierte fecha ISO (2025-09-28) a formato legible para voz (28 de septiembre de 2025)"""
-        from app.utils.timezone_utils import format_date_for_retell
-        return format_date_for_retell(iso_date)
+        try:
+            from utils.timezone_utils import format_date_for_retell
+            return format_date_for_retell(iso_date)
+        except ImportError:
+            # Fallback si no se puede importar la utilidad
+            if not iso_date:
+                return ""
+            
+            try:
+                # Parsear fecha ISO
+                if 'T' in iso_date:  # Si tiene hora, extraer solo fecha
+                    iso_date = iso_date.split('T')[0]
+                
+                from datetime import datetime
+                date_obj = datetime.fromisoformat(iso_date)
+                
+                # Mapeo de meses en español
+                meses = [
+                    '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+                ]
+                
+                dia = date_obj.day
+                mes = meses[date_obj.month]
+                año = date_obj.year
+                
+                return f"{dia} de {mes} de {año}"
+            except (ValueError, IndexError):
+                return iso_date  # Fallback: retornar fecha original
 
 
 @dataclass

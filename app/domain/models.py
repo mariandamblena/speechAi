@@ -34,28 +34,50 @@ class ContactInfo:
 
 
 @dataclass
-class CallPayload:
-    """Datos específicos del contexto de la llamada de cobranza"""
-    debt_amount: float
-    due_date: str
+class BasePayload:
+    """Clase base para todos los payloads de llamadas"""
     company_name: str = ""
-    reference_number: str = ""
     additional_info: Dict[str, Any] = field(default_factory=dict)
     
     def to_retell_context(self) -> Dict[str, str]:
         """Convierte el payload a contexto para Retell (todo strings)"""
         context = {
-            "monto_total": str(self.debt_amount),
-            "fecha_limite": self.due_date,
             "empresa": self.company_name,
-            "referencia": self.reference_number,
         }
         
-        # Agregar info adicional
+        # Agregar información adicional
         for key, value in self.additional_info.items():
             context[key] = str(value)
-            
+        
         return context
+
+
+@dataclass
+class CallPayload(BasePayload):
+    """Datos específicos del contexto de la llamada de cobranza"""
+    debt_amount: float = 0.0
+    due_date: str = ""
+    reference_number: str = ""
+    
+    def to_retell_context(self) -> Dict[str, str]:
+        """Convierte el payload a contexto para Retell (todo strings con fechas legibles)"""
+        context = super().to_retell_context()
+        
+        # Formatear fecha legible para Retell AI
+        fecha_limite_legible = self._format_date_for_speech(self.due_date)
+        
+        context.update({
+            "monto_total": str(self.debt_amount),
+            "fecha_limite": fecha_limite_legible,
+            "referencia": self.reference_number,
+        })
+        
+        return context
+    
+    def _format_date_for_speech(self, iso_date: str) -> str:
+        """Convierte fecha ISO (2025-09-28) a formato legible para voz (28 de septiembre de 2025)"""
+        from app.utils.timezone_utils import format_date_for_retell
+        return format_date_for_retell(iso_date)
 
 
 @dataclass
@@ -108,7 +130,7 @@ class JobModel:
         if not self.job_id:
             # Usar UUID para garantizar unicidad
             unique_id = str(uuid.uuid4())[:8]  # Primeros 8 caracteres del UUID
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             self.job_id = f"job_{self.account_id[:8]}_{timestamp}_{unique_id}"
         return self.job_id
     

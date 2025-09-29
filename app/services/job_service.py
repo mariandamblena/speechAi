@@ -138,7 +138,7 @@ class JobService:
         
         update_data = {
             "status": status.value,
-            "updated_at": datetime.now()
+            "updated_at": datetime.utcnow()
         }
         
         if call_id:
@@ -191,7 +191,7 @@ class JobService:
             match_filters["batch_id"] = batch_id
         
         # Fecha límite
-        date_limit = datetime.now() - timedelta(days=days_back)
+        date_limit = datetime.utcnow() - timedelta(days=days_back)
         match_filters["created_at"] = {"$gte": date_limit}
         
         # Agregación

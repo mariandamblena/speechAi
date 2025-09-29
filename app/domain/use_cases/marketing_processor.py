@@ -7,54 +7,45 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass
 
-from ..models import JobModel, ContactInfo, CallPayload
+from ..models import JobModel, ContactInfo, BasePayload, DebtorModel
 from ..enums import JobStatus
 
 
 @dataclass  
-class MarketingPayload(CallPayload):
+class MarketingPayload(BasePayload):
     """Payload especializado para marketing"""
     
-    # Para marketing, redefinimos los campos base
+    # Campos específicos de marketing
     offer_description: str = ""
     discount_percentage: float = 0.0
     product_category: str = ""
-    
-    # Campos específicos de marketing
     customer_segment: str = 'general'  # 'premium', 'standard', 'basic'
     campaign_type: str = 'promotional'  # 'promotional', 'retention', 'upsell'
     call_to_action: str = 'learn_more'  # 'learn_more', 'buy_now', 'schedule_demo'
     
-    def __init__(self, **kwargs):
-        # Para marketing, mapeamos los campos base
-        self.debt_amount = kwargs.get('offer_value', 0.0)  # Valor de la oferta
-        self.due_date = kwargs.get('offer_expires', '')    # Fecha de expiración
-        self.company_name = kwargs.get('company_name', '')
-        self.additional_info = kwargs.get('additional_info', {})
-        
-        # Campos específicos
-        self.offer_description = kwargs.get('offer_description', '')
-        self.discount_percentage = kwargs.get('discount_percentage', 0.0)
-        self.product_category = kwargs.get('product_category', '')
-        self.customer_segment = kwargs.get('customer_segment', 'general')
-        self.campaign_type = kwargs.get('campaign_type', 'promotional')
-        self.call_to_action = kwargs.get('call_to_action', 'learn_more')
+    # Campos específicos de marketing (no de deuda)
+    offer_value: float = 0.0  # Valor de la oferta
+    offer_expires: str = ""   # Fecha de expiración de la oferta
     
     def to_retell_context(self) -> Dict[str, str]:
         """Contexto específico para IA de marketing"""
-        return {
+        context = super().to_retell_context()
+        
+        # Agregar contexto específico de marketing
+        marketing_context = {
             'tipo_llamada': 'marketing',
-            'empresa': self.company_name,
-            'oferta_descripcion': self.offer_description,
+            'descripcion_oferta': self.offer_description,
             'descuento_porcentaje': str(self.discount_percentage),
             'categoria_producto': self.product_category,
             'segmento_cliente': self.customer_segment,
             'tipo_campana': self.campaign_type,
             'llamada_accion': self.call_to_action,
-            'valor_oferta': str(self.debt_amount),  # Reutilizamos el campo
-            'fecha_expiracion': self.due_date,      # Reutilizamos el campo
+            'valor_oferta': str(self.offer_value),
+            'oferta_expira': self.offer_expires,
             'urgencia': 'alta' if self.discount_percentage > 50 else 'media'
         }
+        
+        return {**context, **marketing_context}
 
 
 class MarketingProcessor:
@@ -65,6 +56,29 @@ class MarketingProcessor:
     
     def __init__(self):
         self.use_case = 'marketing'
+    
+    async def create_debtors_from_normalized_data(
+        self,
+        normalized_contacts: List[Dict[str, Any]],
+        batch_id: str
+    ) -> List[DebtorModel]:
+        """
+        Convierte datos normalizados en modelos DebtorModel para la base de datos
+        (Para marketing, los "deudores" son realmente contactos/prospects)
+        
+        Args:
+            normalized_contacts: Lista de contactos ya normalizados por país
+            batch_id: ID del batch que contendrá estos contactos
+        """
+        debtors = []
+        
+        for contact_data in normalized_contacts:
+            # Para marketing, adaptamos el formato para DebtorModel
+            # Crear DebtorModel desde los datos normalizados
+            debtor = DebtorModel.from_dict(contact_data)
+            debtors.append(debtor)
+        
+        return debtors
     
     async def create_jobs_from_normalized_data(
         self,
@@ -121,11 +135,8 @@ class MarketingProcessor:
                 contact=contact_info,
                 payload=payload,
                 status=JobStatus.PENDING,
-                use_case=self.use_case,
-                country=config.get('country', 'CL'),
                 deduplication_key=f"{account_id}::{contact.get('rut', contact.get('dni', ''))}::{batch_id}",
-                retell_agent_id=config.get('retell_agent_id'),
-                created_at=datetime.now(),
+                created_at=datetime.utcnow(),
                 max_attempts=config.get('max_attempts', 2)  # Marketing: menos intentos
             )
             

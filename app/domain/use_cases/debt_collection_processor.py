@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 from dataclasses import dataclass
 
-from ..models import JobModel, ContactInfo, CallPayload
+from ..models import JobModel, ContactInfo, CallPayload, DebtorModel
 from ..enums import JobStatus
 
 
@@ -27,7 +27,9 @@ class DebtCollectionPayload(CallPayload):
     payment_options: List[str] = None
     
     def __post_init__(self):
-        super().__init__()
+        """Post-procesamiento tras inicialización del dataclass"""
+        # No llamamos super().__init__() porque dataclass ya maneja la inicialización
+        pass
         if self.payment_options is None:
             self.payment_options = ['full_payment', 'installment_plan']
     
@@ -55,6 +57,27 @@ class DebtCollectionProcessor:
     
     def __init__(self):
         self.use_case = 'debt_collection'
+    
+    async def create_debtors_from_normalized_data(
+        self,
+        normalized_debtors: List[Dict[str, Any]],
+        batch_id: str
+    ) -> List[DebtorModel]:
+        """
+        Convierte datos normalizados en modelos DebtorModel para la base de datos
+        
+        Args:
+            normalized_debtors: Lista de deudores ya normalizados por país
+            batch_id: ID del batch que contendrá estos deudores
+        """
+        debtors = []
+        
+        for debtor_data in normalized_debtors:
+            # Crear DebtorModel desde los datos normalizados
+            debtor = DebtorModel.from_dict(debtor_data)
+            debtors.append(debtor)
+        
+        return debtors
     
     async def create_jobs_from_normalized_data(
         self,
@@ -109,11 +132,8 @@ class DebtCollectionProcessor:
                 contact=contact,
                 payload=payload,
                 status=JobStatus.PENDING,
-                use_case=self.use_case,
-                country=config.get('country', 'CL'),
                 deduplication_key=f"{account_id}::{debtor.get('rut', '')}::{batch_id}",
-                retell_agent_id=config.get('retell_agent_id'),
-                created_at=datetime.now(),
+                created_at=datetime.utcnow(),
                 max_attempts=config.get('max_attempts', 3)
             )
             

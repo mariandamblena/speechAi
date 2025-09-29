@@ -273,8 +273,8 @@ class ChileBatchService:
         - fecha_maxima = (FechaVencimiento MÁS CHICA del RUT) + diasRetraso + 7 días
         - Suma montos y cuenta cupones por RUT
         """
-        batch_id = f"batch-{datetime.now().strftime('%Y-%m-%d-%H%M%S')}"
-        now_cl = datetime.now().strftime('%A, %B %d, %Y at %I:%M:%S %p CLT')
+        batch_id = f"batch-{datetime.utcnow().strftime('%Y-%m-%d-%H%M%S')}"
+        now_cl = datetime.now().strftime('%A, %B %d, %Y at %I:%M:%S %p CLT')  # Solo para mostrar al usuario
         
         by_rut = {}
         
@@ -524,7 +524,7 @@ class ChileBatchService:
             else:
                 # Para otros casos de uso, procesar directamente (sin agrupación compleja)
                 normalized_data = await self._process_simple_excel_data(file_content, account_id)
-                batch_id = f"batch-{use_case}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+                batch_id = f"batch-{use_case}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
             
             logger.info(f"Normalized {len(normalized_data)} records for use case '{use_case}'")
             
@@ -543,7 +543,33 @@ class ChileBatchService:
                 'batch_id': batch_id
             })
             
-            # Crear jobs específicos del caso de uso
+            # 6. Crear deudores en la base de datos
+            if hasattr(processor, 'create_debtors_from_normalized_data'):
+                debtors = await processor.create_debtors_from_normalized_data(
+                    normalized_data,
+                    batch_id
+                )
+                
+                # Insertar deudores en la base de datos
+                if debtors:
+                    debtors_data = [debtor.to_dict() for debtor in debtors]
+                    from pymongo import ReplaceOne
+                    
+                    operations = []
+                    for debtor_dict in debtors_data:
+                        operations.append(
+                            ReplaceOne(
+                                filter={'key': debtor_dict['key']},
+                                replacement=debtor_dict,
+                                upsert=True
+                            )
+                        )
+                    
+                    if operations:
+                        result = await self.db_manager.db.debtors.bulk_write(operations)
+                        logger.info(f"Created/updated {result.upserted_count + result.modified_count} debtors")
+            
+            # 7. Crear jobs específicos del caso de uso
             jobs = await processor.create_jobs_from_normalized_data(
                 normalized_data,
                 account_id,
@@ -553,7 +579,7 @@ class ChileBatchService:
             
             logger.info(f"Created {len(jobs)} jobs for use case '{use_case}'")
             
-            # 7. Crear batch en la base de datos
+            # 8. Crear batch en la base de datos
             batch_result = await self._create_batch_with_jobs(
                 batch_id=batch_id,
                 account_id=account_id,
@@ -657,10 +683,10 @@ class ChileBatchService:
                 valid_debtors = processed_debtors
             
             # 4. Crear batch
-            batch_name = batch_name or f"Acquisition Batch {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            batch_name = batch_name or f"Acquisition Batch {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
             
             # Generar un batch_id único usando timestamp + microsegundos
-            batch_id_unique = f"batch-acq-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{datetime.now().microsecond}"
+            batch_id_unique = f"batch-acq-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}-{datetime.utcnow().microsecond}"
             
             batch = BatchModel(
                 account_id=account_id,
@@ -668,6 +694,9 @@ class ChileBatchService:
                 name=batch_name,
                 description=batch_description or f"Acquisition batch with {len(valid_debtors)} debtors",
                 total_jobs=len(valid_debtors),
+                pending_jobs=len(valid_debtors),
+                completed_jobs=0,
+                failed_jobs=0,
                 is_active=True,
                 created_at=datetime.utcnow(),
                 priority=1
@@ -755,9 +784,9 @@ class ChileBatchService:
                 {
                     "$set": {
                         "total_jobs": jobs_created,
-                        "jobs_pending": jobs_created,
-                        "jobs_completed": 0,
-                        "jobs_failed": 0
+                        "pending_jobs": jobs_created,
+                        "completed_jobs": 0,
+                        "failed_jobs": 0
                     }
                 }
             )
@@ -806,10 +835,10 @@ class ChileBatchService:
                 name=batch_name,
                 description=batch_description or f"Batch procesado con {len(jobs)} jobs",
                 total_jobs=len(jobs),
-                jobs_pending=len(jobs),
-                jobs_completed=0,
-                jobs_failed=0,
-                created_at=datetime.now(),
+                pending_jobs=len(jobs),
+                completed_jobs=0,
+                failed_jobs=0,
+                created_at=datetime.utcnow(),
                 is_active=True
             )
             

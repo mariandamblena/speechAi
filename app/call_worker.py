@@ -492,29 +492,74 @@ class CallOrchestrator:
     def _context_from_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
         """
         Mapear datos del job a variables dinámicas que espera el agente Retell.
-        Variables basadas en el prompt de Retell y tu workflow n8n:
-        - {{nombre}}, {{empresa}}, {{cuotas_adeudadas}}, {{monto_total}}, {{fecha_limite}}, {{fecha_maxima}}
+        Usa el payload.to_retell_context() si existe, sino fallback a lógica legacy.
         IMPORTANTE: Retell requiere que TODOS los valores sean strings.
         """
-        # Generar timestamp actual en formato Chile (como en workflow n8n)
-        import datetime
-        now_chile = datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p CLT")
+        from app.utils.timezone_utils import chile_time_display
+        now_chile = chile_time_display()  # Usa nuestra utilidad centralizada
         
+        # Intentar usar el payload del job (nueva arquitectura)
+        payload_data = job.get("payload", {})
+        if payload_data and isinstance(payload_data, dict):
+            # Si el payload tiene el contexto pre-generado, usarlo
+            if hasattr(payload_data, 'to_retell_context'):
+                context = payload_data.to_retell_context()
+            else:
+                # Construir contexto desde payload dict
+                context = {}
+                
+                # Para marketing
+                if payload_data.get('offer_description'):
+                    context.update({
+                        'tipo_llamada': 'marketing',
+                        'empresa': str(payload_data.get('company_name', '')),
+                        'descripcion_oferta': str(payload_data.get('offer_description', '')),
+                        'descuento_porcentaje': str(payload_data.get('discount_percentage', 0)),
+                        'categoria_producto': str(payload_data.get('product_category', '')),
+                        'segmento_cliente': str(payload_data.get('customer_segment', '')),
+                        'tipo_campana': str(payload_data.get('campaign_type', '')),
+                        'llamada_accion': str(payload_data.get('call_to_action', '')),
+                        'valor_oferta': str(payload_data.get('offer_value', 0)),
+                        'oferta_expira': str(payload_data.get('offer_expires', '')),
+                    })
+                # Para debt collection
+                elif payload_data.get('debt_amount'):
+                    context.update({
+                        'tipo_llamada': 'cobranza',
+                        'empresa': str(payload_data.get('company_name', '')),
+                        'monto_total': str(payload_data.get('debt_amount', '')),
+                        'fecha_limite': str(payload_data.get('due_date', '')),
+                        'dias_vencidos': str(payload_data.get('overdue_days', 0)),
+                        'tipo_deuda': str(payload_data.get('debt_type', '')),
+                    })
+            
+            # Agregar información del contacto
+            contact_data = job.get("contact", {})
+            if contact_data:
+                context.update({
+                    'nombre': str(contact_data.get('name', '')),
+                    'RUT': str(contact_data.get('dni', '')),
+                })
+            
+            # Agregar timestamp
+            context['current_time_America_Santiago'] = now_chile
+            
+            return {k: v for k, v in context.items() if v and v != "None"}
+        
+        # Fallback: Lógica legacy para jobs antiguos
         ctx = {
-            "nombre": str(job.get("nombre", "")),  # Para {{nombre}}
-            "empresa": str(job.get("origen_empresa", "")),  # Para {{empresa}}
-            "RUT": str(job.get("rut_fmt") or job.get("rut", "")),  # Para {{RUT}}
-            "cantidad_cupones": str(job.get("cantidad_cupones", "")),  # Para {{cantidad_cupones}}
-            "cuotas_adeudadas": str(job.get("cantidad_cupones", "")),  # Para {{cuotas_adeudadas}} - mismo valor que cantidad_cupones
-            "monto_total": str(job.get("monto_total", "")),  # Para {{monto_total}}
-            "fecha_limite": str(job.get("fecha_limite", "")),  # Para {{fecha_limite}}
-            "fecha_maxima": str(job.get("fecha_maxima", "")),  # Para {{fecha_maxima}}
-            "fecha_pago_cliente": "",  # Vacío como en workflow
-            # Timestamp actual (como en workflow n8n)
+            "nombre": str(job.get("nombre", "")),
+            "empresa": str(job.get("origen_empresa", "")),
+            "RUT": str(job.get("rut_fmt") or job.get("rut", "")),
+            "cantidad_cupones": str(job.get("cantidad_cupones", "")),
+            "cuotas_adeudadas": str(job.get("cantidad_cupones", "")),
+            "monto_total": str(job.get("monto_total", "")),
+            "fecha_limite": str(job.get("fecha_limite", "")),
+            "fecha_maxima": str(job.get("fecha_maxima", "")),
+            "fecha_pago_cliente": "",
             "current_time_America_Santiago": now_chile,
-            "current_time_America/Santiago": now_chile,  # Por si usa formato con slash
         }
-        return {k: v for k, v in ctx.items() if v and v != "None"}  # Excluir valores vacíos o "None"
+        return {k: v for k, v in ctx.items() if v and v != "None"}
 
     def process(self, job: Dict[str, Any]):
         job_id = job["_id"]

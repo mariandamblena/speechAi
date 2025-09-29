@@ -8,9 +8,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from io import BytesIO
 
-from ..domain.abstract.use_case_enums import UseCaseType, DataSourceType
-from ..domain.use_case_registry import get_use_case_registry, get_universal_factory
-from ..domain.abstract.base_models import BaseJobModel, BaseBatchModel
+from ..domain.enums import UseCaseType
+from ..domain.use_case_registry import get_use_case_registry
+from ..domain.models import JobModel, BatchModel
 
 
 class UniversalExcelProcessor:

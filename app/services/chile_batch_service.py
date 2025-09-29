@@ -1,6 +1,7 @@
 """
-Servicio de carga de batches con lógica de adquisición avanzada
-Basado en el workflow N8N de adquisición con normalización chilena
+Servicio de carga de batches con lógica específica para Chile
+Normalización de RUT, teléfonos +56, y fechas DD/MM/YYYY
+Soporta múltiples casos de uso a través del sistema de procesadores
 """
 
 from typing import Dict, List, Optional, Any, Tuple
@@ -18,8 +19,11 @@ from services.account_service import AccountService
 logger = logging.getLogger(__name__)
 
 
-class AcquisitionBatchService:
-    """Servicio de carga de batches con lógica de adquisición avanzada"""
+class ChileBatchService:
+    """Servicio de carga de batches con lógica específica para Chile
+    Incluye normalización de RUT, teléfonos chilenos (+56) y fechas DD/MM/YYYY
+    Ahora soporta múltiples casos de uso: cobranza, marketing, etc.
+    """
     
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
@@ -395,6 +399,190 @@ class AcquisitionBatchService:
         
         return processed_debtors
     
+    async def _process_simple_excel_data(self, file_content: bytes, account_id: str) -> List[Dict[str, Any]]:
+        """
+        Procesamiento simple para casos de uso no-cobranza
+        Sin agrupación por RUT, procesamiento directo 1:1
+        """
+        try:
+            # Usar pandas para leer Excel
+            import pandas as pd
+            import io
+            
+            # Leer Excel
+            df = pd.read_excel(io.BytesIO(file_content))
+            
+            # Normalizar headers
+            df.columns = [self._norm_key(str(col)) for col in df.columns]
+            
+            normalized_contacts = []
+            
+            for idx, row in df.iterrows():
+                row_dict = row.to_dict()
+                
+                # Extraer campos principales con múltiples candidatos
+                nombre = self._get_field_value(row_dict, ['nombre', 'name', 'client name', 'cliente'])
+                
+                # Para marketing/otros casos, puede no ser RUT
+                dni = self._get_field_value(row_dict, ['rut', 'dni', 'id', 'cedula', 'identificacion'])
+                
+                # Teléfonos
+                telefono = self._get_field_value(row_dict, [
+                    'telefono', 'phone', 'telefono movil', 'celular', 'mobile'
+                ])
+                
+                # Normalizar teléfono chileno
+                phone_normalized = self._norm_cl_phone(telefono, 'any')
+                
+                if not nombre or not phone_normalized:
+                    continue  # Saltar registros incompletos
+                
+                contact = {
+                    'nombre': str(nombre).strip(),
+                    'dni': str(dni).strip() if dni else f"contact_{idx}",
+                    'telefono': phone_normalized,
+                    'phones': {
+                        'best_e164': phone_normalized,
+                    },
+                    'to_number': phone_normalized,
+                    'row_index': idx,
+                    'raw_data': row_dict  # Preservar datos originales
+                }
+                
+                normalized_contacts.append(contact)
+            
+            logger.info(f"Simple processing: {len(normalized_contacts)} contacts normalized")
+            return normalized_contacts
+            
+        except Exception as e:
+            logger.error(f"Error in simple Excel processing: {str(e)}")
+            return []
+    
+    def _get_field_value(self, row_dict: Dict[str, Any], candidates: List[str]) -> Optional[str]:
+        """Busca un campo en el row usando múltiples candidatos de nombres"""
+        for candidate in candidates:
+            normalized_candidate = self._norm_key(candidate)
+            if normalized_candidate in row_dict:
+                value = row_dict[normalized_candidate]
+                if value is not None and str(value).strip():
+                    return str(value).strip()
+        return None
+    
+    async def create_batch_for_use_case(
+        self,
+        file_content: bytes,
+        account_id: str,
+        use_case: str,
+        use_case_config: Dict[str, Any],
+        batch_name: str = None,
+        batch_description: str = None,
+        allow_duplicates: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Método principal: Crea batch con datos chilenos para cualquier caso de uso
+        
+        Args:
+            file_content: Contenido del archivo Excel
+            account_id: ID de la cuenta
+            use_case: Tipo de caso de uso ('debt_collection', 'marketing')
+            use_case_config: Configuración específica del caso de uso
+            batch_name: Nombre del batch
+            batch_description: Descripción del batch
+            allow_duplicates: Permitir duplicados
+            
+        Returns:
+            Resultado del procesamiento
+        """
+        try:
+            # 1. Importar el registry de casos de uso
+            from domain.use_case_registry import get_use_case_registry
+            registry = get_use_case_registry()
+            
+            # 2. Validar caso de uso
+            if use_case not in registry.get_available_use_cases():
+                raise ValueError(f"Caso de uso '{use_case}' no soportado. Disponibles: {registry.get_available_use_cases()}")
+            
+            # 3. Validar configuración del caso de uso
+            config_errors = registry.validate_use_case_config(use_case, use_case_config)
+            if config_errors:
+                raise ValueError(f"Configuración inválida: {'; '.join(config_errors)}")
+            
+            # 4. Verificar cuenta
+            account = await self.account_service.get_account(account_id)
+            if not account:
+                raise ValueError(f"Account {account_id} not found")
+            
+            if account.status != AccountStatus.ACTIVE:
+                raise ValueError(f"Account {account_id} is not active (status: {account.status})")
+            
+            # 5. NORMALIZACIÓN CHILENA (siempre igual, independiente del caso de uso)
+            if use_case == 'debt_collection':
+                # Para cobranza, usar lógica avanzada de agrupación por RUT
+                excel_result = self.excel_processor.process_excel_data(file_content, account_id)
+                normalized_data = excel_result['debtors']
+                batch_id = excel_result['batch_id']
+            else:
+                # Para otros casos de uso, procesar directamente (sin agrupación compleja)
+                normalized_data = await self._process_simple_excel_data(file_content, account_id)
+                batch_id = f"batch-{use_case}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            
+            logger.info(f"Normalized {len(normalized_data)} records for use case '{use_case}'")
+            
+            if not normalized_data:
+                return {
+                    "success": False,
+                    "error": "No valid data found after normalization"
+                }
+            
+            # 6. DELEGACIÓN AL PROCESADOR ESPECÍFICO
+            processor = registry.get_processor(use_case)
+            
+            # Agregar configuración de país
+            use_case_config.update({
+                'country': 'CL',
+                'batch_id': batch_id
+            })
+            
+            # Crear jobs específicos del caso de uso
+            jobs = await processor.create_jobs_from_normalized_data(
+                normalized_data,
+                account_id,
+                batch_id,
+                use_case_config
+            )
+            
+            logger.info(f"Created {len(jobs)} jobs for use case '{use_case}'")
+            
+            # 7. Crear batch en la base de datos
+            batch_result = await self._create_batch_with_jobs(
+                batch_id=batch_id,
+                account_id=account_id,
+                jobs=jobs,
+                batch_name=batch_name or f"Chile {use_case.title()} Batch",
+                batch_description=batch_description or f"Batch chileno para {use_case}"
+            )
+            
+            return {
+                "success": True,
+                "batch_id": batch_id,
+                "use_case": use_case,
+                "country": "CL",
+                "stats": {
+                    "total_records_normalized": len(normalized_data),
+                    "jobs_created": len(jobs),
+                    "processing_type": use_case
+                },
+                "batch_result": batch_result
+            }
+            
+        except Exception as e:
+            logger.error(f"Error creating batch for use case '{use_case}': {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "use_case": use_case
+            }
+    
     async def create_batch_from_excel_acquisition(
         self,
         file_content: bytes,
@@ -597,3 +785,52 @@ class AcquisitionBatchService:
                 "error": str(e),
                 "processing_type": "acquisition"
             }
+    
+    async def _create_batch_with_jobs(
+        self,
+        batch_id: str,
+        account_id: str,
+        jobs: List[JobModel],
+        batch_name: str,
+        batch_description: str = None
+    ) -> Dict[str, Any]:
+        """
+        Crea batch en la base de datos con los jobs específicos
+        Método auxiliar usado por el sistema de casos de uso
+        """
+        try:
+            # 1. Crear BatchModel
+            batch = BatchModel(
+                batch_id=batch_id,
+                account_id=account_id,
+                name=batch_name,
+                description=batch_description or f"Batch procesado con {len(jobs)} jobs",
+                total_jobs=len(jobs),
+                jobs_pending=len(jobs),
+                jobs_completed=0,
+                jobs_failed=0,
+                created_at=datetime.now(),
+                is_active=True
+            )
+            
+            # 2. Insertar batch
+            batch_result = await self.db.insert_document("batches", batch.to_dict())
+            logger.info(f"Batch created: {batch_id}")
+            
+            # 3. Insertar jobs en lotes para eficiencia
+            jobs_data = [job.to_dict() for job in jobs]
+            
+            if jobs_data:
+                await self.db.insert_many_documents("jobs", jobs_data)
+                logger.info(f"Inserted {len(jobs_data)} jobs for batch {batch_id}")
+            
+            return {
+                "batch_id": batch_id,
+                "batch_name": batch_name,
+                "jobs_created": len(jobs),
+                "database_result": batch_result
+            }
+            
+        except Exception as e:
+            logger.error(f"Error creating batch with jobs: {str(e)}")
+            raise

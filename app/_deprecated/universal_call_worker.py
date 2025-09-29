@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 
 # Importar el nuevo sistema universal
 from domain.use_case_registry import get_universal_processor
-from domain.abstract.base_models import BaseJobModel
+from domain.models import JobModel
 
 # ----------------------------
 # Config & Logging

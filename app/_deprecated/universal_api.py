@@ -12,7 +12,7 @@ from datetime import datetime
 
 from utils.universal_excel_processor import UniversalExcelProcessor
 from domain.use_case_registry import get_use_case_registry
-from domain.abstract.use_case_enums import UseCaseType
+from domain.enums import UseCaseType
 from infrastructure.mongo_client import get_database
 
 # Configurar logging

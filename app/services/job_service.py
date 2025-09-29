@@ -1,20 +1,20 @@
 """
 Servicio para manejo de jobs de llamadas
 Implementa lógica de negocio siguiendo principios SOLID
+Consolidado: Incluye funcionalidades de API y Workers
 """
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Protocol
 from bson import ObjectId
 
 from config.settings import WorkerConfig
 from domain.models import JobModel, CallResult, ContactInfo
 from domain.enums import JobStatus
 from infrastructure.database_manager import DatabaseManager
-from typing import Optional, List, Dict, Any, Protocol
 
-# Interfaces temporales para compatibilidad
+# Interfaces temporales para compatibilidad con workers
 class IJobRepository(Protocol):
     def find_and_claim_pending_job(self, worker_id: str, lease_seconds: int) -> Optional[JobModel]: ...
     def update_job_status(self, job_id, status: JobStatus, **kwargs) -> bool: ...
@@ -23,35 +23,215 @@ class IJobRepository(Protocol):
 class ICallResultRepository(Protocol):
     def save_call_result(self, result: CallResult) -> bool: ...
 
-# TODO: Migrar completamente a database_manager cuando se necesite usar workers
-
 logger = logging.getLogger(__name__)
 
 
 class JobService:
     """
-    Servicio para manejo de jobs de llamadas
+    Servicio consolidado para manejo de jobs de llamadas
     
     Responsabilidades:
-    - Claiming de jobs pendientes
+    - CRUD completo de jobs (API)
+    - Claiming de jobs pendientes (Workers)
     - Actualización de estados
+    - Estadísticas y reportes
     - Lógica de retry
     - Guardado de resultados
     
     Sigue principios SOLID:
     - Single Responsibility: Solo maneja lógica de jobs
-    - Dependency Inversion: Depende de interfaces, no implementaciones
+    - Dependency Inversion: Soporta múltiples backends
     """
     
     def __init__(
         self,
-        job_repo: IJobRepository,
-        call_result_repo: ICallResultRepository,
-        config: WorkerConfig
+        db_manager: DatabaseManager = None,
+        job_repo: IJobRepository = None,
+        call_result_repo: ICallResultRepository = None,
+        config: WorkerConfig = None
     ):
-        self.job_repo = job_repo
-        self.call_result_repo = call_result_repo
+        # Dual backend support
+        self.db_manager = db_manager
+        self.job_repo = job_repo  # Para workers legacy
+        self.call_result_repo = call_result_repo  # Para workers legacy
         self.config = config
+        
+        # API Collections (when using db_manager)
+        if db_manager:
+            self.jobs_collection = db_manager.get_collection("jobs")
+            self.logger = logger
+    
+    # ============================================================================
+    # API METHODS (Consolidated from job_service_api.py)
+    # ============================================================================
+    
+    async def list_jobs(
+        self,
+        account_id: Optional[str] = None,
+        batch_id: Optional[str] = None,
+        status: Optional[JobStatus] = None,
+        limit: int = 100,
+        skip: int = 0
+    ) -> List[JobModel]:
+        """Lista jobs con filtros opcionales (API method)"""
+        
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        filters = {}
+        if account_id:
+            filters["account_id"] = account_id
+        if batch_id:
+            filters["batch_id"] = batch_id
+        if status:
+            filters["status"] = status.value
+        
+        cursor = self.jobs_collection.find(filters).sort("created_at", -1).skip(skip).limit(limit)
+        jobs = []
+        
+        async for doc in cursor:
+            try:
+                job = JobModel.from_dict(doc)
+                jobs.append(job)
+            except Exception as e:
+                logger.warning(f"Error parsing job {doc.get('_id')}: {e}")
+                continue
+        
+        return jobs
+    
+    async def get_job_by_id(self, job_id: str) -> Optional[JobModel]:
+        """Obtiene un job por su ID (API method)"""
+        
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        try:
+            doc = await self.jobs_collection.find_one({"_id": ObjectId(job_id)})
+            if doc:
+                return JobModel.from_dict(doc)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting job {job_id}: {e}")
+            return None
+    
+    async def create_job(self, job_data: Dict[str, Any]) -> str:
+        """Crea un nuevo job (API method)"""
+        
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        job = JobModel.from_dict(job_data)
+        result = await self.jobs_collection.insert_one(job.to_dict())
+        return str(result.inserted_id)
+    
+    async def update_job_status_api(
+        self,
+        job_id: str,
+        status: JobStatus,
+        call_id: Optional[str] = None,
+        call_result: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Actualiza el estado de un job (API method)"""
+        
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        update_data = {
+            "status": status.value,
+            "updated_at": datetime.now()
+        }
+        
+        if call_id:
+            update_data["call_id"] = call_id
+        if call_result:
+            update_data["call_result"] = call_result
+        
+        result = await self.jobs_collection.update_one(
+            {"_id": ObjectId(job_id)},
+            {"$set": update_data}
+        )
+        
+        return result.modified_count > 0
+    
+    async def get_jobs_by_batch(self, batch_id: str) -> List[JobModel]:
+        """Obtiene todos los jobs de un batch (API method)"""
+        
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        cursor = self.jobs_collection.find({"batch_id": batch_id}).sort("created_at", 1)
+        jobs = []
+        
+        async for doc in cursor:
+            try:
+                job = JobModel.from_dict(doc)
+                jobs.append(job)
+            except Exception as e:
+                logger.warning(f"Error parsing job {doc.get('_id')}: {e}")
+                continue
+        
+        return jobs
+    
+    async def get_job_statistics(
+        self,
+        account_id: Optional[str] = None,
+        batch_id: Optional[str] = None,
+        days_back: int = 7
+    ) -> Dict[str, Any]:
+        """Obtiene estadísticas de jobs (API method)"""
+        
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        # Construir filtros
+        match_filters = {}
+        if account_id:
+            match_filters["account_id"] = account_id
+        if batch_id:
+            match_filters["batch_id"] = batch_id
+        
+        # Fecha límite
+        date_limit = datetime.now() - timedelta(days=days_back)
+        match_filters["created_at"] = {"$gte": date_limit}
+        
+        # Agregación
+        pipeline = [
+            {"$match": match_filters},
+            {
+                "$group": {
+                    "_id": "$status",
+                    "count": {"$sum": 1},
+                    "avg_attempts": {"$avg": "$attempts"}
+                }
+            }
+        ]
+        
+        cursor = self.jobs_collection.aggregate(pipeline)
+        status_counts = {}
+        
+        async for doc in cursor:
+            status_counts[doc["_id"]] = {
+                "count": doc["count"],
+                "avg_attempts": round(doc.get("avg_attempts", 0), 2)
+            }
+        
+        # Calcular totales
+        total_jobs = sum(item["count"] for item in status_counts.values())
+        success_rate = 0
+        if total_jobs > 0:
+            completed = status_counts.get("completed", {}).get("count", 0)
+            success_rate = round((completed / total_jobs) * 100, 2)
+        
+        return {
+            "total_jobs": total_jobs,
+            "success_rate": success_rate,
+            "status_breakdown": status_counts,
+            "period_days": days_back
+        }
+    
+    # ============================================================================
+    # WORKER METHODS (Original functionality)
+    # ============================================================================
     
     def claim_pending_job(self, worker_id: str) -> Optional[JobModel]:
         """

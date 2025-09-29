@@ -48,3 +48,12 @@ class PlanType(Enum):
     CREDIT_BASED = "credit_based"      # Por créditos en dinero
     UNLIMITED = "unlimited"            # Sin límites
 
+
+class UseCaseType(Enum):
+    """Tipos de casos de uso soportados"""
+    DEBT_COLLECTION = "debt_collection"
+    MARKETING = "marketing"
+    SURVEY = "survey"
+    REMINDER = "reminder"
+    NOTIFICATION = "notification"
+

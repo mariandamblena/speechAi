@@ -1,0 +1,3157 @@
+[{
+  "_id": {
+    "$oid": "68d9fce730b0c91f2f9cfeee"
+  },
+  "job_id": "job_strasing_20250929_032838_7c7aaeff",
+  "account_id": "strasing",
+  "batch_id": "batch-2025-09-29-002819-359494",
+  "status": "done",
+  "mode": "single",
+  "attempts": 1,
+  "max_attempts": 3,
+  "deduplication_key": "strasing::213731017::batch-2025-09-29-002819-359494",
+  "contact": {
+    "name": "JUANA  ESTHER CORONADO SIESQUEN",
+    "dni": "213731017",
+    "phones": [
+      "+5491136530246"
+    ],
+    "next_phone_index": 0
+  },
+  "payload": {
+    "debt_amount": 38981,
+    "due_date": "2025-09-01",
+    "company_name": "Natura",
+    "reference_number": "",
+    "additional_info": {
+      "cantidad_cupones": 1,
+      "fecha_maxima": "2025-09-05",
+      "current_time_America_Santiago": "Monday, September 29, 2025 at 12:28:38 AM CLT"
+    }
+  },
+  "created_at": {
+    "$date": "2025-09-29T03:28:34.049Z"
+  },
+  "reserved_until": {
+    "$date": "2025-09-29T03:34:32.955Z"
+  },
+  "started_at": {
+    "$date": "2025-09-29T03:30:56.676Z"
+  },
+  "updated_at": {
+    "$date": "2025-09-29T03:32:33.657Z"
+  },
+  "worker_id": "bot-1",
+  "call_id": "call_a3a032b9841057274a7a967155c",
+  "call_started_at": {
+    "$date": "2025-09-29T03:30:57.564Z"
+  },
+  "is_calling": true,
+  "call_duration_seconds": 96,
+  "call_ended_at": {
+    "$date": "2025-09-29T03:32:33.657Z"
+  },
+  "call_result": {
+    "success": true,
+    "status": "ended",
+    "summary": {
+      "call_status": "ended",
+      "disconnection_reason": "agent_hangup",
+      "duration_ms": 75686,
+      "start_timestamp": {
+        "$numberLong": "1759116665424"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759116741110"
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0.1833333,
+        "product_costs": [
+          {
+            "unit_price": 0.1166667,
+            "product": "elevenlabs_tts",
+            "cost": 8.8666667
+          },
+          {
+            "unit_price": 0.0666667,
+            "product": "gpt_5",
+            "cost": 5.0666667
+          }
+        ],
+        "combined_cost": 13.9333334,
+        "total_duration_seconds": 76
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "The user, Juana Esther Coronado Siesquen, confirmed her payment of 38,981 pesos to Natura, scheduled for September 1, 2025. The agent, Sofía from Je Je Group, provided payment details and reminded the user to pay before the due date to avoid additional charges.",
+        "user_sentiment": "Positive",
+        "custom_analysis_data": {},
+        "call_successful": true
+      },
+      "recording_url": "https://dxc03zgurdly9.cloudfront.net/2f6430afcd47ce67514d86ea2f70680c1417b21439a70cf34f18b7d07375d3e7/recording.wav",
+      "recording_multi_channel_url": "https://dxc03zgurdly9.cloudfront.net/2f6430afcd47ce67514d86ea2f70680c1417b21439a70cf34f18b7d07375d3e7/recording_multichannel.wav",
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/2f6430afcd47ce67514d86ea2f70680c1417b21439a70cf34f18b7d07375d3e7/public.log",
+      "transcript": "User: Hola, \nAgent: Aló, \nUser: ¿quién habla?\nAgent: buenos \nAgent: Aló, buenos días. ¿Es \nUser: Sí. \nAgent: usted JUANA ESTHER CORONADO SIESQUEN?\nUser: Sí, soy yo.\nAgent: Mucho gusto, señora JUANA ESTHER CORONADO SIESQUEN. Le habla Sofía, de Je Je Group, cobranzas para Natura en Chile.Llamo por su deuda con Natura: tiene {{cuotas_adeudadas}} cuotas pendientes, por un total de treinta y ocho mil novecientos ochenta y un pesos. Puede pagar sin cargos adicionales hasta el uno de septiembre de dos mil veinticinco.\n\n¿Confirma que realizará el pago? ¿En qué fecha exacta y por qué monto?\nUser: Sí, voy a pagar el monto total esa fecha.\nUser: El uno de septiembre.\nAgent: Perfecto, entonces queda confirmado su pago total de treinta y ocho mil novecientos ochenta y un pesos el uno de septiembre de dos mil veinticinco.\n\nRecuerde que el pago debe realizarse antes de la fecha acordada para evitar cargos. Esta conversación fue grabada para su seguridad. Puede contactarnos al teléfono 44 32 81 04 2 y en el sitio g g guion g r o u p punto c l.\nUser: Bueno, gracias, chau.\nAgent: Gracias a usted. Que tenga un buen día. Hasta luego.\n",
+      "collected_dynamic_variables": {
+        "fecha_pago_cliente": "2025-09-01",
+        "monto_pago_cliente": "38981"
+      }
+    },
+    "details": {
+      "call_id": "call_a3a032b9841057274a7a967155c",
+      "call_type": "phone_call",
+      "agent_id": "agent_9af386a14d75b856946d189bc2",
+      "agent_version": 10,
+      "agent_name": "Primer test chileno",
+      "retell_llm_dynamic_variables": {
+        "RUT": "213731017",
+        "fecha_limite": "2025-09-01",
+        "monto_total": "38981.0",
+        "current_time_America_Santiago": "Monday, September 29, 2025 at 12:30:56 AM CLT",
+        "dias_vencidos": "0",
+        "tipo_llamada": "cobranza",
+        "empresa": "Natura",
+        "nombre": "JUANA  ESTHER CORONADO SIESQUEN"
+      },
+      "collected_dynamic_variables": {
+        "fecha_pago_cliente": "2025-09-01",
+        "monto_pago_cliente": "38981"
+      },
+      "call_status": "ended",
+      "start_timestamp": {
+        "$numberLong": "1759116665424"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759116741110"
+      },
+      "duration_ms": 75686,
+      "transcript": "User: Hola, \nAgent: Aló, \nUser: ¿quién habla?\nAgent: buenos \nAgent: Aló, buenos días. ¿Es \nUser: Sí. \nAgent: usted JUANA ESTHER CORONADO SIESQUEN?\nUser: Sí, soy yo.\nAgent: Mucho gusto, señora JUANA ESTHER CORONADO SIESQUEN. Le habla Sofía, de Je Je Group, cobranzas para Natura en Chile.Llamo por su deuda con Natura: tiene {{cuotas_adeudadas}} cuotas pendientes, por un total de treinta y ocho mil novecientos ochenta y un pesos. Puede pagar sin cargos adicionales hasta el uno de septiembre de dos mil veinticinco.\n\n¿Confirma que realizará el pago? ¿En qué fecha exacta y por qué monto?\nUser: Sí, voy a pagar el monto total esa fecha.\nUser: El uno de septiembre.\nAgent: Perfecto, entonces queda confirmado su pago total de treinta y ocho mil novecientos ochenta y un pesos el uno de septiembre de dos mil veinticinco.\n\nRecuerde que el pago debe realizarse antes de la fecha acordada para evitar cargos. Esta conversación fue grabada para su seguridad. Puede contactarnos al teléfono 44 32 81 04 2 y en el sitio g g guion g r o u p punto c l.\nUser: Bueno, gracias, chau.\nAgent: Gracias a usted. Que tenga un buen día. Hasta luego.\n",
+      "transcript_object": [
+        {
+          "role": "user",
+          "content": "Hola, ",
+          "words": [
+            {
+              "word": "Hola, ",
+              "start": 1.537,
+              "end": 2.017
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Aló, ",
+          "words": [
+            {
+              "word": "Aló, ",
+              "start": 2.106,
+              "end": 2.361
+            }
+          ],
+          "metadata": {
+            "response_id": 0
+          }
+        },
+        {
+          "role": "user",
+          "content": "¿quién habla?",
+          "words": [
+            {
+              "word": "¿quién ",
+              "start": 2.017,
+              "end": 2.1769998
+            },
+            {
+              "word": "habla?",
+              "start": 2.1769998,
+              "end": 2.4169999
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "buenos ",
+          "words": [
+            {
+              "word": "buenos ",
+              "start": 2.361,
+              "end": 2.593
+            }
+          ],
+          "metadata": {
+            "response_id": 0
+          }
+        },
+        {
+          "role": "agent",
+          "content": "Aló, buenos días. ¿Es ",
+          "words": [
+            {
+              "word": "Aló, ",
+              "start": 4.001,
+              "end": 4.256
+            },
+            {
+              "word": "buenos ",
+              "start": 4.256,
+              "end": 4.512
+            },
+            {
+              "word": "días.",
+              "start": 4.512,
+              "end": 5.15
+            },
+            {
+              "word": " ¿Es ",
+              "start": 5.196333251953125,
+              "end": 5.359333251953125
+            }
+          ],
+          "metadata": {
+            "response_id": 1
+          }
+        },
+        {
+          "role": "user",
+          "content": "Sí. ",
+          "words": [
+            {
+              "word": "Sí. ",
+              "start": 5.546999700000001,
+              "end": 5.867
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "usted JUANA ESTHER CORONADO SIESQUEN?",
+          "words": [
+            {
+              "word": "usted ",
+              "start": 5.359333251953125,
+              "end": 5.614333251953125
+            },
+            {
+              "word": "JUANA ",
+              "start": 5.614333251953125,
+              "end": 5.823333251953125
+            },
+            {
+              "word": "ESTHER ",
+              "start": 5.823333251953125,
+              "end": 6.125333251953125
+            },
+            {
+              "word": "CORONADO ",
+              "start": 6.125333251953125,
+              "end": 6.590333251953125
+            },
+            {
+              "word": "SIESQUEN?",
+              "start": 6.590333251953125,
+              "end": 7.379333251953125
+            }
+          ],
+          "metadata": {
+            "response_id": 1
+          }
+        },
+        {
+          "role": "user",
+          "content": "Sí, soy yo.",
+          "words": [
+            {
+              "word": "Sí, ",
+              "start": 9.296999999999999,
+              "end": 9.616999999999999
+            },
+            {
+              "word": "soy ",
+              "start": 9.616999999999999,
+              "end": 9.777
+            },
+            {
+              "word": "yo.",
+              "start": 9.777,
+              "end": 9.937
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Mucho gusto, señora JUANA ESTHER CORONADO SIESQUEN. Le habla Sofía, de Je Je Group, cobranzas para Natura en Chile.Llamo por su deuda con Natura: tiene {{cuotas_adeudadas}} cuotas pendientes, por un total de treinta y ocho mil novecientos ochenta y un pesos. Puede pagar sin cargos adicionales hasta el uno de septiembre de dos mil veinticinco.\n\n¿Confirma que realizará el pago? ¿En qué fecha exacta y por qué monto?",
+          "words": [
+            {
+              "word": "Mucho ",
+              "start": 11.755,
+              "end": 12.045
+            },
+            {
+              "word": "gusto, ",
+              "start": 12.045,
+              "end": 12.301
+            },
+            {
+              "word": "señora ",
+              "start": 12.301,
+              "end": 12.626
+            },
+            {
+              "word": "JUANA ",
+              "start": 12.626,
+              "end": 12.939
+            },
+            {
+              "word": "ESTHER ",
+              "start": 12.939,
+              "end": 13.346
+            },
+            {
+              "word": "CORONADO ",
+              "start": 13.346,
+              "end": 13.775
+            },
+            {
+              "word": "SIESQUEN.",
+              "start": 13.775,
+              "end": 14.518
+            },
+            {
+              "word": " Le ",
+              "start": 14.530291748046874,
+              "end": 14.657291748046875
+            },
+            {
+              "word": "habla ",
+              "start": 14.657291748046875,
+              "end": 14.936291748046875
+            },
+            {
+              "word": "Sofía, ",
+              "start": 14.936291748046875,
+              "end": 15.551291748046875
+            },
+            {
+              "word": "de ",
+              "start": 15.551291748046875,
+              "end": 15.702291748046875
+            },
+            {
+              "word": "Je ",
+              "start": 15.702291748046875,
+              "end": 15.830291748046875
+            },
+            {
+              "word": "Je ",
+              "start": 15.830291748046875,
+              "end": 15.958291748046875
+            },
+            {
+              "word": "Group, ",
+              "start": 15.958291748046875,
+              "end": 16.283291748046874
+            },
+            {
+              "word": "cobranzas ",
+              "start": 16.283291748046874,
+              "end": 16.782291748046877
+            },
+            {
+              "word": "para ",
+              "start": 16.782291748046877,
+              "end": 16.956291748046876
+            },
+            {
+              "word": "Natura ",
+              "start": 16.956291748046876,
+              "end": 17.258291748046876
+            },
+            {
+              "word": "en ",
+              "start": 17.258291748046876,
+              "end": 17.362291748046875
+            },
+            {
+              "word": "Chile.",
+              "start": 17.362291748046875,
+              "end": 17.955291748046875
+            },
+            {
+              "word": "Llamo ",
+              "start": 18.000833251953125,
+              "end": 18.267833251953125
+            },
+            {
+              "word": "por ",
+              "start": 18.267833251953125,
+              "end": 18.395833251953125
+            },
+            {
+              "word": "su ",
+              "start": 18.395833251953125,
+              "end": 18.523833251953125
+            },
+            {
+              "word": "deuda ",
+              "start": 18.523833251953125,
+              "end": 18.778833251953124
+            },
+            {
+              "word": "con ",
+              "start": 18.778833251953124,
+              "end": 18.906833251953124
+            },
+            {
+              "word": "Natura: ",
+              "start": 18.906833251953124,
+              "end": 19.533833251953126
+            },
+            {
+              "word": "tiene ",
+              "start": 19.533833251953126,
+              "end": 19.928833251953126
+            },
+            {
+              "word": "{{cuotas_adeudadas}} ",
+              "start": 19.928833251953126,
+              "end": 21.042833251953127
+            },
+            {
+              "word": "cuotas ",
+              "start": 21.042833251953127,
+              "end": 21.356833251953127
+            },
+            {
+              "word": "pendientes, ",
+              "start": 21.356833251953127,
+              "end": 22.006833251953125
+            },
+            {
+              "word": "por ",
+              "start": 22.006833251953125,
+              "end": 22.157833251953125
+            },
+            {
+              "word": "un ",
+              "start": 22.157833251953125,
+              "end": 22.226833251953124
+            },
+            {
+              "word": "total ",
+              "start": 22.226833251953124,
+              "end": 22.528833251953124
+            },
+            {
+              "word": "de ",
+              "start": 22.528833251953124,
+              "end": 22.644833251953123
+            },
+            {
+              "word": "treinta ",
+              "start": 22.644833251953123,
+              "end": 22.946833251953127
+            },
+            {
+              "word": "y ",
+              "start": 22.946833251953127,
+              "end": 23.004833251953126
+            },
+            {
+              "word": "ocho ",
+              "start": 23.004833251953126,
+              "end": 23.178833251953126
+            },
+            {
+              "word": "mil ",
+              "start": 23.178833251953126,
+              "end": 23.353833251953127
+            },
+            {
+              "word": "novecientos ",
+              "start": 23.353833251953127,
+              "end": 23.794833251953126
+            },
+            {
+              "word": "ochenta ",
+              "start": 23.794833251953126,
+              "end": 24.096833251953125
+            },
+            {
+              "word": "y ",
+              "start": 24.096833251953125,
+              "end": 24.165833251953124
+            },
+            {
+              "word": "un ",
+              "start": 24.165833251953124,
+              "end": 24.258833251953124
+            },
+            {
+              "word": "pesos.",
+              "start": 24.258833251953124,
+              "end": 24.966833251953126
+            },
+            {
+              "word": " Puede ",
+              "start": 24.99025,
+              "end": 25.30425
+            },
+            {
+              "word": "pagar ",
+              "start": 25.30425,
+              "end": 25.62925
+            },
+            {
+              "word": "sin ",
+              "start": 25.62925,
+              "end": 25.80325
+            },
+            {
+              "word": "cargos ",
+              "start": 25.80325,
+              "end": 26.17425
+            },
+            {
+              "word": "adicionales ",
+              "start": 26.17425,
+              "end": 26.69725
+            },
+            {
+              "word": "hasta ",
+              "start": 26.69725,
+              "end": 26.91725
+            },
+            {
+              "word": "el ",
+              "start": 26.91725,
+              "end": 27.08025
+            },
+            {
+              "word": "uno ",
+              "start": 27.08025,
+              "end": 27.25425
+            },
+            {
+              "word": "de ",
+              "start": 27.25425,
+              "end": 27.33525
+            },
+            {
+              "word": "septiembre ",
+              "start": 27.33525,
+              "end": 27.78825
+            },
+            {
+              "word": "de ",
+              "start": 27.78825,
+              "end": 27.86925
+            },
+            {
+              "word": "dos ",
+              "start": 27.86925,
+              "end": 28.03225
+            },
+            {
+              "word": "mil ",
+              "start": 28.03225,
+              "end": 28.18325
+            },
+            {
+              "word": "veinticinco.",
+              "start": 28.18325,
+              "end": 29.10025
+            },
+            {
+              "word": "\n\n¿Confirma ",
+              "start": 29.146416748046875,
+              "end": 29.669416748046874
+            },
+            {
+              "word": "que ",
+              "start": 29.669416748046874,
+              "end": 29.785416748046874
+            },
+            {
+              "word": "realizará ",
+              "start": 29.785416748046874,
+              "end": 30.157416748046874
+            },
+            {
+              "word": "el ",
+              "start": 30.157416748046874,
+              "end": 30.249416748046876
+            },
+            {
+              "word": "pago?",
+              "start": 30.249416748046876,
+              "end": 30.772416748046876
+            },
+            {
+              "word": " ¿En ",
+              "start": 30.81825,
+              "end": 31.00425
+            },
+            {
+              "word": "qué ",
+              "start": 31.00425,
+              "end": 31.12025
+            },
+            {
+              "word": "fecha ",
+              "start": 31.12025,
+              "end": 31.36425
+            },
+            {
+              "word": "exacta ",
+              "start": 31.36425,
+              "end": 31.78225
+            },
+            {
+              "word": "y ",
+              "start": 31.78225,
+              "end": 31.86325
+            },
+            {
+              "word": "por ",
+              "start": 31.86325,
+              "end": 32.01425
+            },
+            {
+              "word": "qué ",
+              "start": 32.01425,
+              "end": 32.14225
+            },
+            {
+              "word": "monto?",
+              "start": 32.14225,
+              "end": 32.67625
+            }
+          ],
+          "metadata": {
+            "response_id": 2
+          }
+        },
+        {
+          "role": "user",
+          "content": "Sí, voy a pagar el monto total esa fecha.",
+          "words": [
+            {
+              "word": "Sí, ",
+              "start": 34.797000000000004,
+              "end": 35.117000000000004
+            },
+            {
+              "word": "voy ",
+              "start": 35.117000000000004,
+              "end": 35.357000000000006
+            },
+            {
+              "word": "a ",
+              "start": 35.357000000000006,
+              "end": 35.437000000000005
+            },
+            {
+              "word": "pagar ",
+              "start": 35.437000000000005,
+              "end": 35.677
+            },
+            {
+              "word": "el ",
+              "start": 36.607000000000006,
+              "end": 37.166998
+            },
+            {
+              "word": "monto ",
+              "start": 37.166998,
+              "end": 37.567
+            },
+            {
+              "word": "total ",
+              "start": 37.567,
+              "end": 38.207
+            },
+            {
+              "word": "esa ",
+              "start": 38.207,
+              "end": 38.606996
+            },
+            {
+              "word": "fecha.",
+              "start": 38.606996,
+              "end": 38.846998000000006
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "El uno de septiembre.",
+          "words": [
+            {
+              "word": "El ",
+              "start": 40.556997,
+              "end": 40.876997
+            },
+            {
+              "word": "uno ",
+              "start": 40.876997,
+              "end": 41.036997
+            },
+            {
+              "word": "de ",
+              "start": 41.036997,
+              "end": 41.197
+            },
+            {
+              "word": "septiembre.",
+              "start": 41.197,
+              "end": 41.517
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Perfecto, entonces queda confirmado su pago total de treinta y ocho mil novecientos ochenta y un pesos el uno de septiembre de dos mil veinticinco.\n\nRecuerde que el pago debe realizarse antes de la fecha acordada para evitar cargos. Esta conversación fue grabada para su seguridad. Puede contactarnos al teléfono 44 32 81 04 2 y en el sitio g g guion g r o u p punto c l.",
+          "words": [
+            {
+              "word": "Perfecto, ",
+              "start": 43.463,
+              "end": 44.276
+            },
+            {
+              "word": "entonces ",
+              "start": 44.276,
+              "end": 44.891
+            },
+            {
+              "word": "queda ",
+              "start": 44.891,
+              "end": 45.088
+            },
+            {
+              "word": "confirmado ",
+              "start": 45.088,
+              "end": 45.53
+            },
+            {
+              "word": "su ",
+              "start": 45.53,
+              "end": 45.634
+            },
+            {
+              "word": "pago ",
+              "start": 45.634,
+              "end": 45.855
+            },
+            {
+              "word": "total ",
+              "start": 45.855,
+              "end": 46.191
+            },
+            {
+              "word": "de ",
+              "start": 46.191,
+              "end": 46.307
+            },
+            {
+              "word": "treinta ",
+              "start": 46.307,
+              "end": 46.586
+            },
+            {
+              "word": "y ",
+              "start": 46.586,
+              "end": 46.632
+            },
+            {
+              "word": "ocho ",
+              "start": 46.632,
+              "end": 46.807
+            },
+            {
+              "word": "mil ",
+              "start": 46.807,
+              "end": 46.946
+            },
+            {
+              "word": "novecientos ",
+              "start": 46.946,
+              "end": 47.55
+            },
+            {
+              "word": "ochenta ",
+              "start": 47.55,
+              "end": 47.875
+            },
+            {
+              "word": "y ",
+              "start": 47.875,
+              "end": 47.944
+            },
+            {
+              "word": "un ",
+              "start": 47.944,
+              "end": 48.049
+            },
+            {
+              "word": "pesos ",
+              "start": 48.049,
+              "end": 48.397
+            },
+            {
+              "word": "el ",
+              "start": 48.397,
+              "end": 48.536
+            },
+            {
+              "word": "uno ",
+              "start": 48.536,
+              "end": 48.687
+            },
+            {
+              "word": "de ",
+              "start": 48.687,
+              "end": 48.78
+            },
+            {
+              "word": "septiembre ",
+              "start": 48.78,
+              "end": 49.245
+            },
+            {
+              "word": "de ",
+              "start": 49.245,
+              "end": 49.361
+            },
+            {
+              "word": "dos ",
+              "start": 49.361,
+              "end": 49.547
+            },
+            {
+              "word": "mil ",
+              "start": 49.547,
+              "end": 49.721
+            },
+            {
+              "word": "veinticinco.",
+              "start": 49.721,
+              "end": 50.789
+            },
+            {
+              "word": "\n\nRecuerde ",
+              "start": 50.811833251953125,
+              "end": 51.299833251953125
+            },
+            {
+              "word": "que ",
+              "start": 51.299833251953125,
+              "end": 51.39283325195313
+            },
+            {
+              "word": "el ",
+              "start": 51.39283325195313,
+              "end": 51.51983325195312
+            },
+            {
+              "word": "pago ",
+              "start": 51.51983325195312,
+              "end": 51.82183325195312
+            },
+            {
+              "word": "debe ",
+              "start": 51.82183325195312,
+              "end": 52.04283325195313
+            },
+            {
+              "word": "realizarse ",
+              "start": 52.04283325195313,
+              "end": 52.692833251953125
+            },
+            {
+              "word": "antes ",
+              "start": 52.692833251953125,
+              "end": 53.040833251953124
+            },
+            {
+              "word": "de ",
+              "start": 53.040833251953124,
+              "end": 53.14583325195313
+            },
+            {
+              "word": "la ",
+              "start": 53.14583325195313,
+              "end": 53.24983325195313
+            },
+            {
+              "word": "fecha ",
+              "start": 53.24983325195313,
+              "end": 53.528833251953124
+            },
+            {
+              "word": "acordada ",
+              "start": 53.528833251953124,
+              "end": 54.12083325195312
+            },
+            {
+              "word": "para ",
+              "start": 54.12083325195312,
+              "end": 54.30683325195312
+            },
+            {
+              "word": "evitar ",
+              "start": 54.30683325195312,
+              "end": 54.701833251953126
+            },
+            {
+              "word": "cargos.",
+              "start": 54.701833251953126,
+              "end": 55.38683325195313
+            },
+            {
+              "word": " Esta ",
+              "start": 55.432375,
+              "end": 55.607375
+            },
+            {
+              "word": "conversación ",
+              "start": 55.607375,
+              "end": 56.094375
+            },
+            {
+              "word": "fue ",
+              "start": 56.094375,
+              "end": 56.268375
+            },
+            {
+              "word": "grabada ",
+              "start": 56.268375,
+              "end": 56.930375
+            },
+            {
+              "word": "para ",
+              "start": 56.930375,
+              "end": 57.174375
+            },
+            {
+              "word": "su ",
+              "start": 57.174375,
+              "end": 57.313375
+            },
+            {
+              "word": "seguridad.",
+              "start": 57.313375,
+              "end": 58.080375
+            },
+            {
+              "word": " Puede ",
+              "start": 58.11491674804687,
+              "end": 58.41691674804687
+            },
+            {
+              "word": "contactarnos ",
+              "start": 58.41691674804687,
+              "end": 59.00891674804687
+            },
+            {
+              "word": "al ",
+              "start": 59.00891674804687,
+              "end": 59.11291674804688
+            },
+            {
+              "word": "teléfono ",
+              "start": 59.11291674804688,
+              "end": 59.623916748046874
+            },
+            {
+              "word": "44 ",
+              "start": 59.623916748046874,
+              "end": 60.656916748046875
+            },
+            {
+              "word": "32 ",
+              "start": 60.656916748046875,
+              "end": 61.34191674804688
+            },
+            {
+              "word": "81 ",
+              "start": 61.34191674804688,
+              "end": 61.95791674804688
+            },
+            {
+              "word": "04 ",
+              "start": 61.95791674804688,
+              "end": 62.58491674804687
+            },
+            {
+              "word": "2 ",
+              "start": 62.58491674804687,
+              "end": 62.967916748046875
+            },
+            {
+              "word": "y ",
+              "start": 62.967916748046875,
+              "end": 63.06091674804688
+            },
+            {
+              "word": "en ",
+              "start": 63.06091674804688,
+              "end": 63.17691674804688
+            },
+            {
+              "word": "el ",
+              "start": 63.17691674804688,
+              "end": 63.28091674804688
+            },
+            {
+              "word": "sitio ",
+              "start": 63.28091674804688,
+              "end": 63.66391674804687
+            },
+            {
+              "word": "g ",
+              "start": 63.66391674804687,
+              "end": 63.91991674804687
+            },
+            {
+              "word": "g ",
+              "start": 63.91991674804687,
+              "end": 64.27991674804687
+            },
+            {
+              "word": "guion ",
+              "start": 64.27991674804687,
+              "end": 64.89491674804688
+            },
+            {
+              "word": "g ",
+              "start": 64.89491674804688,
+              "end": 65.48691674804688
+            },
+            {
+              "word": "r ",
+              "start": 65.48691674804688,
+              "end": 65.64991674804688
+            },
+            {
+              "word": "o ",
+              "start": 65.64991674804688,
+              "end": 65.97491674804688
+            },
+            {
+              "word": "u ",
+              "start": 65.97491674804688,
+              "end": 66.21891674804688
+            },
+            {
+              "word": "p ",
+              "start": 66.21891674804688,
+              "end": 66.47391674804688
+            },
+            {
+              "word": "punto ",
+              "start": 66.47391674804688,
+              "end": 66.81091674804688
+            },
+            {
+              "word": "c ",
+              "start": 66.81091674804688,
+              "end": 67.12391674804688
+            },
+            {
+              "word": "l.",
+              "start": 67.12391674804688,
+              "end": 67.55391674804687
+            }
+          ],
+          "metadata": {
+            "response_id": 5
+          }
+        },
+        {
+          "role": "user",
+          "content": "Bueno, gracias, chau.",
+          "words": [
+            {
+              "word": "Bueno, ",
+              "start": 69.73698999999999,
+              "end": 70.217
+            },
+            {
+              "word": "gracias, ",
+              "start": 70.217,
+              "end": 70.61699999999999
+            },
+            {
+              "word": "chau.",
+              "start": 70.61699999999999,
+              "end": 70.857
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Gracias a usted. Que tenga un buen día. Hasta luego.",
+          "words": [
+            {
+              "word": "Gracias ",
+              "start": 72.552,
+              "end": 72.923
+            },
+            {
+              "word": "a ",
+              "start": 72.923,
+              "end": 73.005
+            },
+            {
+              "word": "usted. ",
+              "start": 73.005,
+              "end": 73.608
+            },
+            {
+              "word": "Que ",
+              "start": 73.64345825195312,
+              "end": 73.80545825195313
+            },
+            {
+              "word": "tenga ",
+              "start": 73.80545825195313,
+              "end": 74.00345825195312
+            },
+            {
+              "word": "un ",
+              "start": 74.00345825195312,
+              "end": 74.11945825195312
+            },
+            {
+              "word": "buen ",
+              "start": 74.11945825195312,
+              "end": 74.29345825195313
+            },
+            {
+              "word": "día. ",
+              "start": 74.29345825195313,
+              "end": 74.76945825195313
+            },
+            {
+              "word": "Hasta ",
+              "start": 74.81545825195313,
+              "end": 75.08245825195313
+            },
+            {
+              "word": "luego.",
+              "start": 75.08245825195313,
+              "end": 75.65145825195313
+            }
+          ],
+          "metadata": {
+            "response_id": 6
+          }
+        }
+      ],
+      "transcript_with_tool_calls": [
+        {
+          "role": "user",
+          "content": "Hola, ",
+          "words": [
+            {
+              "word": "Hola, ",
+              "start": 1.537,
+              "end": 2.017
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Aló, ",
+          "words": [
+            {
+              "word": "Aló, ",
+              "start": 2.106,
+              "end": 2.361
+            }
+          ],
+          "metadata": {
+            "response_id": 0
+          }
+        },
+        {
+          "role": "user",
+          "content": "¿quién habla?",
+          "words": [
+            {
+              "word": "¿quién ",
+              "start": 2.017,
+              "end": 2.1769998
+            },
+            {
+              "word": "habla?",
+              "start": 2.1769998,
+              "end": 2.4169999
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "buenos ",
+          "words": [
+            {
+              "word": "buenos ",
+              "start": 2.361,
+              "end": 2.593
+            }
+          ],
+          "metadata": {
+            "response_id": 0
+          }
+        },
+        {
+          "role": "agent",
+          "content": "Aló, buenos días. ¿Es ",
+          "words": [
+            {
+              "word": "Aló, ",
+              "start": 4.001,
+              "end": 4.256
+            },
+            {
+              "word": "buenos ",
+              "start": 4.256,
+              "end": 4.512
+            },
+            {
+              "word": "días.",
+              "start": 4.512,
+              "end": 5.15
+            },
+            {
+              "word": " ¿Es ",
+              "start": 5.196333251953125,
+              "end": 5.359333251953125
+            }
+          ],
+          "metadata": {
+            "response_id": 1
+          }
+        },
+        {
+          "role": "user",
+          "content": "Sí. ",
+          "words": [
+            {
+              "word": "Sí. ",
+              "start": 5.546999700000001,
+              "end": 5.867
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "usted JUANA ESTHER CORONADO SIESQUEN?",
+          "words": [
+            {
+              "word": "usted ",
+              "start": 5.359333251953125,
+              "end": 5.614333251953125
+            },
+            {
+              "word": "JUANA ",
+              "start": 5.614333251953125,
+              "end": 5.823333251953125
+            },
+            {
+              "word": "ESTHER ",
+              "start": 5.823333251953125,
+              "end": 6.125333251953125
+            },
+            {
+              "word": "CORONADO ",
+              "start": 6.125333251953125,
+              "end": 6.590333251953125
+            },
+            {
+              "word": "SIESQUEN?",
+              "start": 6.590333251953125,
+              "end": 7.379333251953125
+            }
+          ],
+          "metadata": {
+            "response_id": 1
+          }
+        },
+        {
+          "role": "user",
+          "content": "Sí, soy yo.",
+          "words": [
+            {
+              "word": "Sí, ",
+              "start": 9.296999999999999,
+              "end": 9.616999999999999
+            },
+            {
+              "word": "soy ",
+              "start": 9.616999999999999,
+              "end": 9.777
+            },
+            {
+              "word": "yo.",
+              "start": 9.777,
+              "end": 9.937
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Mucho gusto, señora JUANA ESTHER CORONADO SIESQUEN. Le habla Sofía, de Je Je Group, cobranzas para Natura en Chile.Llamo por su deuda con Natura: tiene {{cuotas_adeudadas}} cuotas pendientes, por un total de treinta y ocho mil novecientos ochenta y un pesos. Puede pagar sin cargos adicionales hasta el uno de septiembre de dos mil veinticinco.\n\n¿Confirma que realizará el pago? ¿En qué fecha exacta y por qué monto?",
+          "words": [
+            {
+              "word": "Mucho ",
+              "start": 11.755,
+              "end": 12.045
+            },
+            {
+              "word": "gusto, ",
+              "start": 12.045,
+              "end": 12.301
+            },
+            {
+              "word": "señora ",
+              "start": 12.301,
+              "end": 12.626
+            },
+            {
+              "word": "JUANA ",
+              "start": 12.626,
+              "end": 12.939
+            },
+            {
+              "word": "ESTHER ",
+              "start": 12.939,
+              "end": 13.346
+            },
+            {
+              "word": "CORONADO ",
+              "start": 13.346,
+              "end": 13.775
+            },
+            {
+              "word": "SIESQUEN.",
+              "start": 13.775,
+              "end": 14.518
+            },
+            {
+              "word": " Le ",
+              "start": 14.530291748046874,
+              "end": 14.657291748046875
+            },
+            {
+              "word": "habla ",
+              "start": 14.657291748046875,
+              "end": 14.936291748046875
+            },
+            {
+              "word": "Sofía, ",
+              "start": 14.936291748046875,
+              "end": 15.551291748046875
+            },
+            {
+              "word": "de ",
+              "start": 15.551291748046875,
+              "end": 15.702291748046875
+            },
+            {
+              "word": "Je ",
+              "start": 15.702291748046875,
+              "end": 15.830291748046875
+            },
+            {
+              "word": "Je ",
+              "start": 15.830291748046875,
+              "end": 15.958291748046875
+            },
+            {
+              "word": "Group, ",
+              "start": 15.958291748046875,
+              "end": 16.283291748046874
+            },
+            {
+              "word": "cobranzas ",
+              "start": 16.283291748046874,
+              "end": 16.782291748046877
+            },
+            {
+              "word": "para ",
+              "start": 16.782291748046877,
+              "end": 16.956291748046876
+            },
+            {
+              "word": "Natura ",
+              "start": 16.956291748046876,
+              "end": 17.258291748046876
+            },
+            {
+              "word": "en ",
+              "start": 17.258291748046876,
+              "end": 17.362291748046875
+            },
+            {
+              "word": "Chile.",
+              "start": 17.362291748046875,
+              "end": 17.955291748046875
+            },
+            {
+              "word": "Llamo ",
+              "start": 18.000833251953125,
+              "end": 18.267833251953125
+            },
+            {
+              "word": "por ",
+              "start": 18.267833251953125,
+              "end": 18.395833251953125
+            },
+            {
+              "word": "su ",
+              "start": 18.395833251953125,
+              "end": 18.523833251953125
+            },
+            {
+              "word": "deuda ",
+              "start": 18.523833251953125,
+              "end": 18.778833251953124
+            },
+            {
+              "word": "con ",
+              "start": 18.778833251953124,
+              "end": 18.906833251953124
+            },
+            {
+              "word": "Natura: ",
+              "start": 18.906833251953124,
+              "end": 19.533833251953126
+            },
+            {
+              "word": "tiene ",
+              "start": 19.533833251953126,
+              "end": 19.928833251953126
+            },
+            {
+              "word": "{{cuotas_adeudadas}} ",
+              "start": 19.928833251953126,
+              "end": 21.042833251953127
+            },
+            {
+              "word": "cuotas ",
+              "start": 21.042833251953127,
+              "end": 21.356833251953127
+            },
+            {
+              "word": "pendientes, ",
+              "start": 21.356833251953127,
+              "end": 22.006833251953125
+            },
+            {
+              "word": "por ",
+              "start": 22.006833251953125,
+              "end": 22.157833251953125
+            },
+            {
+              "word": "un ",
+              "start": 22.157833251953125,
+              "end": 22.226833251953124
+            },
+            {
+              "word": "total ",
+              "start": 22.226833251953124,
+              "end": 22.528833251953124
+            },
+            {
+              "word": "de ",
+              "start": 22.528833251953124,
+              "end": 22.644833251953123
+            },
+            {
+              "word": "treinta ",
+              "start": 22.644833251953123,
+              "end": 22.946833251953127
+            },
+            {
+              "word": "y ",
+              "start": 22.946833251953127,
+              "end": 23.004833251953126
+            },
+            {
+              "word": "ocho ",
+              "start": 23.004833251953126,
+              "end": 23.178833251953126
+            },
+            {
+              "word": "mil ",
+              "start": 23.178833251953126,
+              "end": 23.353833251953127
+            },
+            {
+              "word": "novecientos ",
+              "start": 23.353833251953127,
+              "end": 23.794833251953126
+            },
+            {
+              "word": "ochenta ",
+              "start": 23.794833251953126,
+              "end": 24.096833251953125
+            },
+            {
+              "word": "y ",
+              "start": 24.096833251953125,
+              "end": 24.165833251953124
+            },
+            {
+              "word": "un ",
+              "start": 24.165833251953124,
+              "end": 24.258833251953124
+            },
+            {
+              "word": "pesos.",
+              "start": 24.258833251953124,
+              "end": 24.966833251953126
+            },
+            {
+              "word": " Puede ",
+              "start": 24.99025,
+              "end": 25.30425
+            },
+            {
+              "word": "pagar ",
+              "start": 25.30425,
+              "end": 25.62925
+            },
+            {
+              "word": "sin ",
+              "start": 25.62925,
+              "end": 25.80325
+            },
+            {
+              "word": "cargos ",
+              "start": 25.80325,
+              "end": 26.17425
+            },
+            {
+              "word": "adicionales ",
+              "start": 26.17425,
+              "end": 26.69725
+            },
+            {
+              "word": "hasta ",
+              "start": 26.69725,
+              "end": 26.91725
+            },
+            {
+              "word": "el ",
+              "start": 26.91725,
+              "end": 27.08025
+            },
+            {
+              "word": "uno ",
+              "start": 27.08025,
+              "end": 27.25425
+            },
+            {
+              "word": "de ",
+              "start": 27.25425,
+              "end": 27.33525
+            },
+            {
+              "word": "septiembre ",
+              "start": 27.33525,
+              "end": 27.78825
+            },
+            {
+              "word": "de ",
+              "start": 27.78825,
+              "end": 27.86925
+            },
+            {
+              "word": "dos ",
+              "start": 27.86925,
+              "end": 28.03225
+            },
+            {
+              "word": "mil ",
+              "start": 28.03225,
+              "end": 28.18325
+            },
+            {
+              "word": "veinticinco.",
+              "start": 28.18325,
+              "end": 29.10025
+            },
+            {
+              "word": "\n\n¿Confirma ",
+              "start": 29.146416748046875,
+              "end": 29.669416748046874
+            },
+            {
+              "word": "que ",
+              "start": 29.669416748046874,
+              "end": 29.785416748046874
+            },
+            {
+              "word": "realizará ",
+              "start": 29.785416748046874,
+              "end": 30.157416748046874
+            },
+            {
+              "word": "el ",
+              "start": 30.157416748046874,
+              "end": 30.249416748046876
+            },
+            {
+              "word": "pago?",
+              "start": 30.249416748046876,
+              "end": 30.772416748046876
+            },
+            {
+              "word": " ¿En ",
+              "start": 30.81825,
+              "end": 31.00425
+            },
+            {
+              "word": "qué ",
+              "start": 31.00425,
+              "end": 31.12025
+            },
+            {
+              "word": "fecha ",
+              "start": 31.12025,
+              "end": 31.36425
+            },
+            {
+              "word": "exacta ",
+              "start": 31.36425,
+              "end": 31.78225
+            },
+            {
+              "word": "y ",
+              "start": 31.78225,
+              "end": 31.86325
+            },
+            {
+              "word": "por ",
+              "start": 31.86325,
+              "end": 32.01425
+            },
+            {
+              "word": "qué ",
+              "start": 32.01425,
+              "end": 32.14225
+            },
+            {
+              "word": "monto?",
+              "start": 32.14225,
+              "end": 32.67625
+            }
+          ],
+          "metadata": {
+            "response_id": 2
+          }
+        },
+        {
+          "role": "user",
+          "content": "Sí, voy a pagar el monto total esa fecha.",
+          "words": [
+            {
+              "word": "Sí, ",
+              "start": 34.797000000000004,
+              "end": 35.117000000000004
+            },
+            {
+              "word": "voy ",
+              "start": 35.117000000000004,
+              "end": 35.357000000000006
+            },
+            {
+              "word": "a ",
+              "start": 35.357000000000006,
+              "end": 35.437000000000005
+            },
+            {
+              "word": "pagar ",
+              "start": 35.437000000000005,
+              "end": 35.677
+            },
+            {
+              "word": "el ",
+              "start": 36.607000000000006,
+              "end": 37.166998
+            },
+            {
+              "word": "monto ",
+              "start": 37.166998,
+              "end": 37.567
+            },
+            {
+              "word": "total ",
+              "start": 37.567,
+              "end": 38.207
+            },
+            {
+              "word": "esa ",
+              "start": 38.207,
+              "end": 38.606996
+            },
+            {
+              "word": "fecha.",
+              "start": 38.606996,
+              "end": 38.846998000000006
+            }
+          ]
+        },
+        {
+          "role": "tool_call_invocation",
+          "tool_call_id": "ef117bf049fa1aa3",
+          "name": "extract_payment_commitment",
+          "arguments": "",
+          "timeSec": 40.491
+        },
+        {
+          "role": "tool_call_result",
+          "tool_call_id": "ef117bf049fa1aa3",
+          "content": "{\"status\":\"dynamic variables extracted successfully\",\"variables\":{\"fecha_pago_cliente\":\"2025-09-01\",\"monto_pago_cliente\":\"38981\"}}",
+          "timeSec": 40.492
+        },
+        {
+          "role": "user",
+          "content": "El uno de septiembre.",
+          "words": [
+            {
+              "word": "El ",
+              "start": 40.556997,
+              "end": 40.876997
+            },
+            {
+              "word": "uno ",
+              "start": 40.876997,
+              "end": 41.036997
+            },
+            {
+              "word": "de ",
+              "start": 41.036997,
+              "end": 41.197
+            },
+            {
+              "word": "septiembre.",
+              "start": 41.197,
+              "end": 41.517
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Perfecto, entonces queda confirmado su pago total de treinta y ocho mil novecientos ochenta y un pesos el uno de septiembre de dos mil veinticinco.\n\nRecuerde que el pago debe realizarse antes de la fecha acordada para evitar cargos. Esta conversación fue grabada para su seguridad. Puede contactarnos al teléfono 44 32 81 04 2 y en el sitio g g guion g r o u p punto c l.",
+          "words": [
+            {
+              "word": "Perfecto, ",
+              "start": 43.463,
+              "end": 44.276
+            },
+            {
+              "word": "entonces ",
+              "start": 44.276,
+              "end": 44.891
+            },
+            {
+              "word": "queda ",
+              "start": 44.891,
+              "end": 45.088
+            },
+            {
+              "word": "confirmado ",
+              "start": 45.088,
+              "end": 45.53
+            },
+            {
+              "word": "su ",
+              "start": 45.53,
+              "end": 45.634
+            },
+            {
+              "word": "pago ",
+              "start": 45.634,
+              "end": 45.855
+            },
+            {
+              "word": "total ",
+              "start": 45.855,
+              "end": 46.191
+            },
+            {
+              "word": "de ",
+              "start": 46.191,
+              "end": 46.307
+            },
+            {
+              "word": "treinta ",
+              "start": 46.307,
+              "end": 46.586
+            },
+            {
+              "word": "y ",
+              "start": 46.586,
+              "end": 46.632
+            },
+            {
+              "word": "ocho ",
+              "start": 46.632,
+              "end": 46.807
+            },
+            {
+              "word": "mil ",
+              "start": 46.807,
+              "end": 46.946
+            },
+            {
+              "word": "novecientos ",
+              "start": 46.946,
+              "end": 47.55
+            },
+            {
+              "word": "ochenta ",
+              "start": 47.55,
+              "end": 47.875
+            },
+            {
+              "word": "y ",
+              "start": 47.875,
+              "end": 47.944
+            },
+            {
+              "word": "un ",
+              "start": 47.944,
+              "end": 48.049
+            },
+            {
+              "word": "pesos ",
+              "start": 48.049,
+              "end": 48.397
+            },
+            {
+              "word": "el ",
+              "start": 48.397,
+              "end": 48.536
+            },
+            {
+              "word": "uno ",
+              "start": 48.536,
+              "end": 48.687
+            },
+            {
+              "word": "de ",
+              "start": 48.687,
+              "end": 48.78
+            },
+            {
+              "word": "septiembre ",
+              "start": 48.78,
+              "end": 49.245
+            },
+            {
+              "word": "de ",
+              "start": 49.245,
+              "end": 49.361
+            },
+            {
+              "word": "dos ",
+              "start": 49.361,
+              "end": 49.547
+            },
+            {
+              "word": "mil ",
+              "start": 49.547,
+              "end": 49.721
+            },
+            {
+              "word": "veinticinco.",
+              "start": 49.721,
+              "end": 50.789
+            },
+            {
+              "word": "\n\nRecuerde ",
+              "start": 50.811833251953125,
+              "end": 51.299833251953125
+            },
+            {
+              "word": "que ",
+              "start": 51.299833251953125,
+              "end": 51.39283325195313
+            },
+            {
+              "word": "el ",
+              "start": 51.39283325195313,
+              "end": 51.51983325195312
+            },
+            {
+              "word": "pago ",
+              "start": 51.51983325195312,
+              "end": 51.82183325195312
+            },
+            {
+              "word": "debe ",
+              "start": 51.82183325195312,
+              "end": 52.04283325195313
+            },
+            {
+              "word": "realizarse ",
+              "start": 52.04283325195313,
+              "end": 52.692833251953125
+            },
+            {
+              "word": "antes ",
+              "start": 52.692833251953125,
+              "end": 53.040833251953124
+            },
+            {
+              "word": "de ",
+              "start": 53.040833251953124,
+              "end": 53.14583325195313
+            },
+            {
+              "word": "la ",
+              "start": 53.14583325195313,
+              "end": 53.24983325195313
+            },
+            {
+              "word": "fecha ",
+              "start": 53.24983325195313,
+              "end": 53.528833251953124
+            },
+            {
+              "word": "acordada ",
+              "start": 53.528833251953124,
+              "end": 54.12083325195312
+            },
+            {
+              "word": "para ",
+              "start": 54.12083325195312,
+              "end": 54.30683325195312
+            },
+            {
+              "word": "evitar ",
+              "start": 54.30683325195312,
+              "end": 54.701833251953126
+            },
+            {
+              "word": "cargos.",
+              "start": 54.701833251953126,
+              "end": 55.38683325195313
+            },
+            {
+              "word": " Esta ",
+              "start": 55.432375,
+              "end": 55.607375
+            },
+            {
+              "word": "conversación ",
+              "start": 55.607375,
+              "end": 56.094375
+            },
+            {
+              "word": "fue ",
+              "start": 56.094375,
+              "end": 56.268375
+            },
+            {
+              "word": "grabada ",
+              "start": 56.268375,
+              "end": 56.930375
+            },
+            {
+              "word": "para ",
+              "start": 56.930375,
+              "end": 57.174375
+            },
+            {
+              "word": "su ",
+              "start": 57.174375,
+              "end": 57.313375
+            },
+            {
+              "word": "seguridad.",
+              "start": 57.313375,
+              "end": 58.080375
+            },
+            {
+              "word": " Puede ",
+              "start": 58.11491674804687,
+              "end": 58.41691674804687
+            },
+            {
+              "word": "contactarnos ",
+              "start": 58.41691674804687,
+              "end": 59.00891674804687
+            },
+            {
+              "word": "al ",
+              "start": 59.00891674804687,
+              "end": 59.11291674804688
+            },
+            {
+              "word": "teléfono ",
+              "start": 59.11291674804688,
+              "end": 59.623916748046874
+            },
+            {
+              "word": "44 ",
+              "start": 59.623916748046874,
+              "end": 60.656916748046875
+            },
+            {
+              "word": "32 ",
+              "start": 60.656916748046875,
+              "end": 61.34191674804688
+            },
+            {
+              "word": "81 ",
+              "start": 61.34191674804688,
+              "end": 61.95791674804688
+            },
+            {
+              "word": "04 ",
+              "start": 61.95791674804688,
+              "end": 62.58491674804687
+            },
+            {
+              "word": "2 ",
+              "start": 62.58491674804687,
+              "end": 62.967916748046875
+            },
+            {
+              "word": "y ",
+              "start": 62.967916748046875,
+              "end": 63.06091674804688
+            },
+            {
+              "word": "en ",
+              "start": 63.06091674804688,
+              "end": 63.17691674804688
+            },
+            {
+              "word": "el ",
+              "start": 63.17691674804688,
+              "end": 63.28091674804688
+            },
+            {
+              "word": "sitio ",
+              "start": 63.28091674804688,
+              "end": 63.66391674804687
+            },
+            {
+              "word": "g ",
+              "start": 63.66391674804687,
+              "end": 63.91991674804687
+            },
+            {
+              "word": "g ",
+              "start": 63.91991674804687,
+              "end": 64.27991674804687
+            },
+            {
+              "word": "guion ",
+              "start": 64.27991674804687,
+              "end": 64.89491674804688
+            },
+            {
+              "word": "g ",
+              "start": 64.89491674804688,
+              "end": 65.48691674804688
+            },
+            {
+              "word": "r ",
+              "start": 65.48691674804688,
+              "end": 65.64991674804688
+            },
+            {
+              "word": "o ",
+              "start": 65.64991674804688,
+              "end": 65.97491674804688
+            },
+            {
+              "word": "u ",
+              "start": 65.97491674804688,
+              "end": 66.21891674804688
+            },
+            {
+              "word": "p ",
+              "start": 66.21891674804688,
+              "end": 66.47391674804688
+            },
+            {
+              "word": "punto ",
+              "start": 66.47391674804688,
+              "end": 66.81091674804688
+            },
+            {
+              "word": "c ",
+              "start": 66.81091674804688,
+              "end": 67.12391674804688
+            },
+            {
+              "word": "l.",
+              "start": 67.12391674804688,
+              "end": 67.55391674804687
+            }
+          ],
+          "metadata": {
+            "response_id": 5
+          }
+        },
+        {
+          "role": "user",
+          "content": "Bueno, gracias, chau.",
+          "words": [
+            {
+              "word": "Bueno, ",
+              "start": 69.73698999999999,
+              "end": 70.217
+            },
+            {
+              "word": "gracias, ",
+              "start": 70.217,
+              "end": 70.61699999999999
+            },
+            {
+              "word": "chau.",
+              "start": 70.61699999999999,
+              "end": 70.857
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Gracias a usted. Que tenga un buen día. Hasta luego.",
+          "words": [
+            {
+              "word": "Gracias ",
+              "start": 72.552,
+              "end": 72.923
+            },
+            {
+              "word": "a ",
+              "start": 72.923,
+              "end": 73.005
+            },
+            {
+              "word": "usted. ",
+              "start": 73.005,
+              "end": 73.608
+            },
+            {
+              "word": "Que ",
+              "start": 73.64345825195312,
+              "end": 73.80545825195313
+            },
+            {
+              "word": "tenga ",
+              "start": 73.80545825195313,
+              "end": 74.00345825195312
+            },
+            {
+              "word": "un ",
+              "start": 74.00345825195312,
+              "end": 74.11945825195312
+            },
+            {
+              "word": "buen ",
+              "start": 74.11945825195312,
+              "end": 74.29345825195313
+            },
+            {
+              "word": "día. ",
+              "start": 74.29345825195313,
+              "end": 74.76945825195313
+            },
+            {
+              "word": "Hasta ",
+              "start": 74.81545825195313,
+              "end": 75.08245825195313
+            },
+            {
+              "word": "luego.",
+              "start": 75.08245825195313,
+              "end": 75.65145825195313
+            }
+          ],
+          "metadata": {
+            "response_id": 6
+          }
+        },
+        {
+          "role": "tool_call_invocation",
+          "tool_call_id": "e299a7cee926a487",
+          "name": "end_call",
+          "arguments": "{\"execution_message\":\"Gracias a usted. Que tenga un buen día. Hasta luego.\"}",
+          "timeSec": 75.683
+        }
+      ],
+      "recording_url": "https://dxc03zgurdly9.cloudfront.net/2f6430afcd47ce67514d86ea2f70680c1417b21439a70cf34f18b7d07375d3e7/recording.wav",
+      "recording_multi_channel_url": "https://dxc03zgurdly9.cloudfront.net/2f6430afcd47ce67514d86ea2f70680c1417b21439a70cf34f18b7d07375d3e7/recording_multichannel.wav",
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/2f6430afcd47ce67514d86ea2f70680c1417b21439a70cf34f18b7d07375d3e7/public.log",
+      "disconnection_reason": "agent_hangup",
+      "latency": {
+        "llm": {
+          "p99": 1697.5,
+          "min": 835,
+          "max": 1723,
+          "p90": 1468,
+          "num": 6,
+          "values": [
+            1723,
+            835,
+            1197,
+            965,
+            1096,
+            1213
+          ],
+          "p50": 1146.5,
+          "p95": 1595.5
+        },
+        "e2e": {
+          "p99": 1792.24,
+          "min": 1434,
+          "max": 1795,
+          "p90": 1767.4,
+          "num": 4,
+          "values": [
+            1434,
+            1703,
+            1795,
+            1544
+          ],
+          "p50": 1623.5,
+          "p95": 1781.2
+        },
+        "tts": {
+          "p99": 372,
+          "min": 252,
+          "max": 376,
+          "p90": 336,
+          "num": 6,
+          "values": [
+            253,
+            273,
+            296,
+            269,
+            376,
+            252
+          ],
+          "p50": 271,
+          "p95": 356
+        }
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0.1833333,
+        "product_costs": [
+          {
+            "unit_price": 0.1166667,
+            "product": "elevenlabs_tts",
+            "cost": 8.8666667
+          },
+          {
+            "unit_price": 0.0666667,
+            "product": "gpt_5",
+            "cost": 5.0666667
+          }
+        ],
+        "combined_cost": 13.9333334,
+        "total_duration_seconds": 76
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "The user, Juana Esther Coronado Siesquen, confirmed her payment of 38,981 pesos to Natura, scheduled for September 1, 2025. The agent, Sofía from Je Je Group, provided payment details and reminded the user to pay before the due date to avoid additional charges.",
+        "user_sentiment": "Positive",
+        "custom_analysis_data": {},
+        "call_successful": true
+      },
+      "opt_out_sensitive_data_storage": false,
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "llm_token_usage": {
+        "values": [
+          752,
+          753,
+          787,
+          906,
+          912,
+          991,
+          999,
+          1105
+        ],
+        "average": 900.625,
+        "num_requests": 8
+      },
+      "from_number": "+17753707009",
+      "to_number": "+5491136530246",
+      "direction": "outbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA627d686b91796a25fdc99062ed1b6138"
+      }
+    },
+    "timestamp": {
+      "$date": "2025-09-29T03:32:33.657Z"
+    }
+  },
+  "fecha_pago_cliente": "2025-09-01",
+  "finished_at": {
+    "$date": "2025-09-29T03:32:33.657Z"
+  },
+  "monto_pago_cliente": 38981
+},
+{
+  "_id": {
+    "$oid": "68d9fce730b0c91f2f9cfeef"
+  },
+  "job_id": "job_strasing_20250929_032838_e12cdc66",
+  "account_id": "strasing",
+  "batch_id": "batch-2025-09-29-002819-359494",
+  "status": "failed",
+  "mode": "single",
+  "attempts": 1,
+  "max_attempts": 3,
+  "deduplication_key": "strasing::91980223::batch-2025-09-29-002819-359494",
+  "contact": {
+    "name": "CECILIA  DEL CARMEN DURAN GUTIERREZ",
+    "dni": "91980223",
+    "phones": [
+      "+5491158620976"
+    ],
+    "next_phone_index": 1
+  },
+  "payload": {
+    "debt_amount": 67333,
+    "due_date": "2025-09-01",
+    "company_name": "Natura",
+    "reference_number": "",
+    "additional_info": {
+      "cantidad_cupones": 1,
+      "fecha_maxima": "2025-09-05",
+      "current_time_America_Santiago": "Monday, September 29, 2025 at 12:28:38 AM CLT"
+    }
+  },
+  "created_at": {
+    "$date": "2025-09-29T03:28:34.049Z"
+  },
+  "reserved_until": null,
+  "started_at": {
+    "$date": "2025-09-29T03:32:33.660Z"
+  },
+  "updated_at": {
+    "$date": "2025-09-29T03:32:48.161Z"
+  },
+  "worker_id": "bot-1",
+  "call_id": "call_85a7a46d1c8fda9617273ead844",
+  "call_started_at": {
+    "$date": "2025-09-29T03:32:34.346Z"
+  },
+  "is_calling": true,
+  "call_duration_seconds": 13,
+  "call_ended_at": {
+    "$date": "2025-09-29T03:32:48.154Z"
+  },
+  "call_result": {
+    "success": false,
+    "status": "not_connected",
+    "summary": {
+      "call_status": "not_connected",
+      "disconnection_reason": "dial_busy",
+      "duration_ms": 0,
+      "start_timestamp": {
+        "$numberLong": "1759116755714"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759116755714"
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "recording_url": null,
+      "recording_multi_channel_url": null,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/75cb1d12c910c94fb6ccbb2a20ff131a8237a094227a457ba3be9f9911f2846d/public.log",
+      "transcript": null
+    },
+    "details": {
+      "call_id": "call_85a7a46d1c8fda9617273ead844",
+      "call_type": "phone_call",
+      "agent_id": "agent_9af386a14d75b856946d189bc2",
+      "agent_version": 10,
+      "agent_name": "Primer test chileno",
+      "retell_llm_dynamic_variables": {
+        "RUT": "91980223",
+        "fecha_limite": "2025-09-01",
+        "monto_total": "67333.0",
+        "current_time_America_Santiago": "Monday, September 29, 2025 at 12:32:33 AM CLT",
+        "dias_vencidos": "0",
+        "tipo_llamada": "cobranza",
+        "empresa": "Natura",
+        "nombre": "CECILIA  DEL CARMEN DURAN GUTIERREZ"
+      },
+      "call_status": "not_connected",
+      "start_timestamp": {
+        "$numberLong": "1759116755714"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759116755714"
+      },
+      "duration_ms": 0,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/75cb1d12c910c94fb6ccbb2a20ff131a8237a094227a457ba3be9f9911f2846d/public.log",
+      "disconnection_reason": "dial_busy",
+      "latency": {},
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "opt_out_sensitive_data_storage": false,
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "from_number": "+17753707009",
+      "to_number": "+5491158620976",
+      "direction": "outbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA7a7748847a959fae2194223a4994f53d"
+      }
+    },
+    "timestamp": {
+      "$date": "2025-09-29T03:32:48.154Z"
+    }
+  },
+  "last_attempt_result": "not_connected",
+  "next_try_at": {
+    "$date": "2025-09-29T04:32:48.154Z"
+  },
+  "last_error": "No quedan teléfonos por intentar"
+},
+{
+  "_id": {
+    "$oid": "68da02735df96c420c70dd56"
+  },
+  "job_id": "test_parallel_1",
+  "account_id": "strasing",
+  "batch_id": "batch-parallel-test-002",
+  "status": "failed",
+  "mode": "single",
+  "attempts": 1,
+  "max_attempts": 3,
+  "deduplication_key": "strasing::111111111::batch-parallel-test-002",
+  "contact": {
+    "name": "TEST PARALELO 1",
+    "dni": "111111111",
+    "phones": [
+      "+5491111110001"
+    ],
+    "next_phone_index": 1
+  },
+  "payload": {
+    "debt_amount": 11000,
+    "due_date": "2025-10-01",
+    "company_name": "Natura",
+    "reference_number": "PARALLEL001",
+    "additional_info": {
+      "cantidad_cupones": 1,
+      "fecha_maxima": "2025-10-05",
+      "current_time_America_Santiago": "Monday, September 29, 2025 at 12:00:00 AM CLT"
+    }
+  },
+  "created_at": {
+    "$date": "2025-09-29T03:52:19.460Z"
+  },
+  "updated_at": {
+    "$date": "2025-09-29T03:53:18.238Z"
+  },
+  "reserved_until": null,
+  "started_at": {
+    "$date": "2025-09-29T03:52:35.265Z"
+  },
+  "worker_id": "bot-3",
+  "call_id": "call_14f810a5280393c5b0428a0a301",
+  "call_started_at": {
+    "$date": "2025-09-29T03:52:42.416Z"
+  },
+  "is_calling": true,
+  "call_duration_seconds": 35,
+  "call_ended_at": {
+    "$date": "2025-09-29T03:53:18.231Z"
+  },
+  "call_result": {
+    "success": false,
+    "status": "not_connected",
+    "summary": {
+      "call_status": "not_connected",
+      "disconnection_reason": "invalid_destination",
+      "duration_ms": 0,
+      "start_timestamp": {
+        "$numberLong": "1759117984708"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117984708"
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "recording_url": null,
+      "recording_multi_channel_url": null,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/b1b7519abd76ce2f584c97a32742a73bc0fab40007bd794092a523d06d184cf1/public.log",
+      "transcript": null
+    },
+    "details": {
+      "call_id": "call_14f810a5280393c5b0428a0a301",
+      "call_type": "phone_call",
+      "agent_id": "agent_9af386a14d75b856946d189bc2",
+      "agent_version": 10,
+      "agent_name": "Primer test chileno",
+      "retell_llm_dynamic_variables": {
+        "RUT": "111111111",
+        "fecha_limite": "2025-10-01",
+        "monto_total": "11000",
+        "current_time_America_Santiago": "Monday, September 29, 2025 at 12:52:38 AM CLT",
+        "dias_vencidos": "0",
+        "tipo_llamada": "cobranza",
+        "empresa": "Natura",
+        "nombre": "TEST PARALELO 1"
+      },
+      "call_status": "not_connected",
+      "start_timestamp": {
+        "$numberLong": "1759117984708"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117984708"
+      },
+      "duration_ms": 0,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/b1b7519abd76ce2f584c97a32742a73bc0fab40007bd794092a523d06d184cf1/public.log",
+      "disconnection_reason": "invalid_destination",
+      "latency": {},
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "opt_out_sensitive_data_storage": false,
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "from_number": "+17753707009",
+      "to_number": "+5491111110001",
+      "direction": "outbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA9102e8d1b240890415881357ab76c753"
+      }
+    },
+    "timestamp": {
+      "$date": "2025-09-29T03:53:18.231Z"
+    }
+  },
+  "last_attempt_result": "not_connected",
+  "next_try_at": {
+    "$date": "2025-09-29T04:53:18.231Z"
+  },
+  "last_error": "No quedan teléfonos por intentar"
+},
+{
+  "_id": {
+    "$oid": "68da02735df96c420c70dd57"
+  },
+  "job_id": "test_parallel_2",
+  "account_id": "strasing",
+  "batch_id": "batch-parallel-test-002",
+  "status": "failed",
+  "mode": "single",
+  "attempts": 2,
+  "max_attempts": 3,
+  "deduplication_key": "strasing::111111112::batch-parallel-test-002",
+  "contact": {
+    "name": "TEST PARALELO 2",
+    "dni": "111111112",
+    "phones": [
+      "+5491111110002"
+    ],
+    "next_phone_index": 1
+  },
+  "payload": {
+    "debt_amount": 12000,
+    "due_date": "2025-10-01",
+    "company_name": "Natura",
+    "reference_number": "PARALLEL002",
+    "additional_info": {
+      "cantidad_cupones": 1,
+      "fecha_maxima": "2025-10-05",
+      "current_time_America_Santiago": "Monday, September 29, 2025 at 12:00:00 AM CLT"
+    }
+  },
+  "created_at": {
+    "$date": "2025-09-29T03:52:19.460Z"
+  },
+  "updated_at": {
+    "$date": "2025-09-29T03:52:59.552Z"
+  },
+  "reserved_until": null,
+  "started_at": {
+    "$date": "2025-09-29T03:52:59.540Z"
+  },
+  "worker_id": "bot-5",
+  "call_id": "call_5956f52a732040a7e09fc751bca",
+  "call_started_at": {
+    "$date": "2025-09-29T03:52:43.438Z"
+  },
+  "is_calling": true,
+  "call_duration_seconds": 16,
+  "call_ended_at": {
+    "$date": "2025-09-29T03:52:59.533Z"
+  },
+  "call_result": {
+    "success": false,
+    "status": "not_connected",
+    "summary": {
+      "call_status": "not_connected",
+      "disconnection_reason": "invalid_destination",
+      "duration_ms": 0,
+      "start_timestamp": {
+        "$numberLong": "1759117972638"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117972638"
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "recording_url": null,
+      "recording_multi_channel_url": null,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/c9bbbdef634d4d886af029976ca4ffa74d0440c2add86da8d82a3eb814e97990/public.log",
+      "transcript": null
+    },
+    "details": {
+      "call_id": "call_5956f52a732040a7e09fc751bca",
+      "call_type": "phone_call",
+      "agent_id": "agent_9af386a14d75b856946d189bc2",
+      "agent_version": 10,
+      "agent_name": "Primer test chileno",
+      "retell_llm_dynamic_variables": {
+        "RUT": "111111112",
+        "fecha_limite": "2025-10-01",
+        "monto_total": "12000",
+        "current_time_America_Santiago": "Monday, September 29, 2025 at 12:52:38 AM CLT",
+        "dias_vencidos": "0",
+        "tipo_llamada": "cobranza",
+        "empresa": "Natura",
+        "nombre": "TEST PARALELO 2"
+      },
+      "call_status": "not_connected",
+      "start_timestamp": {
+        "$numberLong": "1759117972638"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117972638"
+      },
+      "duration_ms": 0,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/c9bbbdef634d4d886af029976ca4ffa74d0440c2add86da8d82a3eb814e97990/public.log",
+      "disconnection_reason": "invalid_destination",
+      "latency": {},
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "opt_out_sensitive_data_storage": false,
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "from_number": "+17753707009",
+      "to_number": "+5491111110002",
+      "direction": "outbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA01e912246094ac6e74aad1b3ada63deb"
+      }
+    },
+    "timestamp": {
+      "$date": "2025-09-29T03:52:59.533Z"
+    }
+  },
+  "last_attempt_result": "not_connected",
+  "next_try_at": {
+    "$date": "2025-09-29T04:52:59.533Z"
+  },
+  "last_error": "Sin teléfono válido"
+},
+{
+  "_id": {
+    "$oid": "68da02735df96c420c70dd58"
+  },
+  "job_id": "test_parallel_3",
+  "account_id": "strasing",
+  "batch_id": "batch-parallel-test-002",
+  "status": "failed",
+  "mode": "single",
+  "attempts": 1,
+  "max_attempts": 3,
+  "deduplication_key": "strasing::111111113::batch-parallel-test-002",
+  "contact": {
+    "name": "TEST PARALELO 3",
+    "dni": "111111113",
+    "phones": [
+      "+5491111110003"
+    ],
+    "next_phone_index": 1
+  },
+  "payload": {
+    "debt_amount": 13000,
+    "due_date": "2025-10-01",
+    "company_name": "Natura",
+    "reference_number": "PARALLEL003",
+    "additional_info": {
+      "cantidad_cupones": 1,
+      "fecha_maxima": "2025-10-05",
+      "current_time_America_Santiago": "Monday, September 29, 2025 at 12:00:00 AM CLT"
+    }
+  },
+  "created_at": {
+    "$date": "2025-09-29T03:52:19.460Z"
+  },
+  "updated_at": {
+    "$date": "2025-09-29T03:53:12.547Z"
+  },
+  "reserved_until": null,
+  "started_at": {
+    "$date": "2025-09-29T03:52:35.475Z"
+  },
+  "worker_id": "bot-1",
+  "call_id": "call_f93e64f498e18101eb56aa50be7",
+  "call_started_at": {
+    "$date": "2025-09-29T03:52:40.378Z"
+  },
+  "is_calling": true,
+  "call_duration_seconds": 32,
+  "call_ended_at": {
+    "$date": "2025-09-29T03:53:12.543Z"
+  },
+  "call_result": {
+    "success": false,
+    "status": "not_connected",
+    "summary": {
+      "call_status": "not_connected",
+      "disconnection_reason": "invalid_destination",
+      "duration_ms": 0,
+      "start_timestamp": {
+        "$numberLong": "1759117984904"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117984904"
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "recording_url": null,
+      "recording_multi_channel_url": null,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/07023fae97e35a8b105e75c105138591c7e5b011292d8547dd5bf5b927276392/public.log",
+      "transcript": null
+    },
+    "details": {
+      "call_id": "call_f93e64f498e18101eb56aa50be7",
+      "call_type": "phone_call",
+      "agent_id": "agent_9af386a14d75b856946d189bc2",
+      "agent_version": 10,
+      "agent_name": "Primer test chileno",
+      "retell_llm_dynamic_variables": {
+        "RUT": "111111113",
+        "fecha_limite": "2025-10-01",
+        "monto_total": "13000",
+        "current_time_America_Santiago": "Monday, September 29, 2025 at 12:52:38 AM CLT",
+        "dias_vencidos": "0",
+        "tipo_llamada": "cobranza",
+        "empresa": "Natura",
+        "nombre": "TEST PARALELO 3"
+      },
+      "call_status": "not_connected",
+      "start_timestamp": {
+        "$numberLong": "1759117984904"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117984904"
+      },
+      "duration_ms": 0,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/07023fae97e35a8b105e75c105138591c7e5b011292d8547dd5bf5b927276392/public.log",
+      "disconnection_reason": "invalid_destination",
+      "latency": {},
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "opt_out_sensitive_data_storage": false,
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "from_number": "+17753707009",
+      "to_number": "+5491111110003",
+      "direction": "outbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA08558218cbadcb53ff5432ce4209f45d"
+      }
+    },
+    "timestamp": {
+      "$date": "2025-09-29T03:53:12.543Z"
+    }
+  },
+  "last_attempt_result": "not_connected",
+  "next_try_at": {
+    "$date": "2025-09-29T04:53:12.543Z"
+  },
+  "last_error": "No quedan teléfonos por intentar"
+},
+{
+  "_id": {
+    "$oid": "68da02735df96c420c70dd59"
+  },
+  "job_id": "test_parallel_4",
+  "account_id": "strasing",
+  "batch_id": "batch-parallel-test-002",
+  "status": "failed",
+  "mode": "single",
+  "attempts": 1,
+  "max_attempts": 3,
+  "deduplication_key": "strasing::111111114::batch-parallel-test-002",
+  "contact": {
+    "name": "TEST PARALELO 4",
+    "dni": "111111114",
+    "phones": [
+      "+5491111110004"
+    ],
+    "next_phone_index": 1
+  },
+  "payload": {
+    "debt_amount": 14000,
+    "due_date": "2025-10-01",
+    "company_name": "Natura",
+    "reference_number": "PARALLEL004",
+    "additional_info": {
+      "cantidad_cupones": 1,
+      "fecha_maxima": "2025-10-05",
+      "current_time_America_Santiago": "Monday, September 29, 2025 at 12:00:00 AM CLT"
+    }
+  },
+  "created_at": {
+    "$date": "2025-09-29T03:52:19.460Z"
+  },
+  "updated_at": {
+    "$date": "2025-09-29T03:52:57.262Z"
+  },
+  "reserved_until": null,
+  "started_at": {
+    "$date": "2025-09-29T03:52:35.885Z"
+  },
+  "worker_id": "bot-5",
+  "call_id": "call_4b492cbe2c31466e76038593170",
+  "call_started_at": {
+    "$date": "2025-09-29T03:52:42.417Z"
+  },
+  "is_calling": true,
+  "call_duration_seconds": 14,
+  "call_ended_at": {
+    "$date": "2025-09-29T03:52:57.258Z"
+  },
+  "call_result": {
+    "success": false,
+    "status": "not_connected",
+    "summary": {
+      "call_status": "not_connected",
+      "disconnection_reason": "invalid_destination",
+      "duration_ms": 0,
+      "start_timestamp": {
+        "$numberLong": "1759117972098"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117972098"
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "recording_url": null,
+      "recording_multi_channel_url": null,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/6ec9b40f00f213db5bfb0471f0d98ffb25eef4b84e4b5c31afc1911a15c1cdfa/public.log",
+      "transcript": null
+    },
+    "details": {
+      "call_id": "call_4b492cbe2c31466e76038593170",
+      "call_type": "phone_call",
+      "agent_id": "agent_9af386a14d75b856946d189bc2",
+      "agent_version": 10,
+      "agent_name": "Primer test chileno",
+      "retell_llm_dynamic_variables": {
+        "RUT": "111111114",
+        "fecha_limite": "2025-10-01",
+        "monto_total": "14000",
+        "current_time_America_Santiago": "Monday, September 29, 2025 at 12:52:38 AM CLT",
+        "dias_vencidos": "0",
+        "tipo_llamada": "cobranza",
+        "empresa": "Natura",
+        "nombre": "TEST PARALELO 4"
+      },
+      "call_status": "not_connected",
+      "start_timestamp": {
+        "$numberLong": "1759117972098"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117972098"
+      },
+      "duration_ms": 0,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/6ec9b40f00f213db5bfb0471f0d98ffb25eef4b84e4b5c31afc1911a15c1cdfa/public.log",
+      "disconnection_reason": "invalid_destination",
+      "latency": {},
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "opt_out_sensitive_data_storage": false,
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "from_number": "+17753707009",
+      "to_number": "+5491111110004",
+      "direction": "outbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA13e567be7aa1b03a2d3f0ef225af9793"
+      }
+    },
+    "timestamp": {
+      "$date": "2025-09-29T03:52:57.258Z"
+    }
+  },
+  "last_attempt_result": "not_connected",
+  "next_try_at": {
+    "$date": "2025-09-29T04:52:57.258Z"
+  },
+  "last_error": "No quedan teléfonos por intentar"
+},
+{
+  "_id": {
+    "$oid": "68da02735df96c420c70dd5a"
+  },
+  "job_id": "test_parallel_5",
+  "account_id": "strasing",
+  "batch_id": "batch-parallel-test-002",
+  "status": "failed",
+  "mode": "single",
+  "attempts": 1,
+  "max_attempts": 3,
+  "deduplication_key": "strasing::111111115::batch-parallel-test-002",
+  "contact": {
+    "name": "TEST PARALELO 5",
+    "dni": "111111115",
+    "phones": [
+      "+5491111110005"
+    ],
+    "next_phone_index": 1
+  },
+  "payload": {
+    "debt_amount": 15000,
+    "due_date": "2025-10-01",
+    "company_name": "Natura",
+    "reference_number": "PARALLEL005",
+    "additional_info": {
+      "cantidad_cupones": 1,
+      "fecha_maxima": "2025-10-05",
+      "current_time_America_Santiago": "Monday, September 29, 2025 at 12:00:00 AM CLT"
+    }
+  },
+  "created_at": {
+    "$date": "2025-09-29T03:52:19.460Z"
+  },
+  "updated_at": {
+    "$date": "2025-09-29T03:52:54.778Z"
+  },
+  "reserved_until": null,
+  "started_at": {
+    "$date": "2025-09-29T03:52:35.937Z"
+  },
+  "worker_id": "bot-6",
+  "call_id": "call_beb9645570eedf2b99f5bb9f5ab",
+  "call_started_at": {
+    "$date": "2025-09-29T03:52:40.350Z"
+  },
+  "is_calling": true,
+  "call_duration_seconds": 14,
+  "call_ended_at": {
+    "$date": "2025-09-29T03:52:54.767Z"
+  },
+  "call_result": {
+    "success": false,
+    "status": "not_connected",
+    "summary": {
+      "call_status": "not_connected",
+      "disconnection_reason": "invalid_destination",
+      "duration_ms": 0,
+      "start_timestamp": {
+        "$numberLong": "1759117970975"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117970975"
+      },
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "recording_url": null,
+      "recording_multi_channel_url": null,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/3fde3ad59f17dabc4783e32f1f5e23751d952b243aa653be02c218eabcb2d172/public.log",
+      "transcript": null
+    },
+    "details": {
+      "call_id": "call_beb9645570eedf2b99f5bb9f5ab",
+      "call_type": "phone_call",
+      "agent_id": "agent_9af386a14d75b856946d189bc2",
+      "agent_version": 10,
+      "agent_name": "Primer test chileno",
+      "retell_llm_dynamic_variables": {
+        "RUT": "111111115",
+        "fecha_limite": "2025-10-01",
+        "monto_total": "15000",
+        "current_time_America_Santiago": "Monday, September 29, 2025 at 12:52:38 AM CLT",
+        "dias_vencidos": "0",
+        "tipo_llamada": "cobranza",
+        "empresa": "Natura",
+        "nombre": "TEST PARALELO 5"
+      },
+      "call_status": "not_connected",
+      "start_timestamp": {
+        "$numberLong": "1759117970975"
+      },
+      "end_timestamp": {
+        "$numberLong": "1759117970975"
+      },
+      "duration_ms": 0,
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/3fde3ad59f17dabc4783e32f1f5e23751d952b243aa653be02c218eabcb2d172/public.log",
+      "disconnection_reason": "invalid_destination",
+      "latency": {},
+      "call_cost": {
+        "total_duration_unit_price": 0,
+        "product_costs": [],
+        "combined_cost": 0,
+        "total_duration_seconds": 0
+      },
+      "call_analysis": {
+        "in_voicemail": false,
+        "call_summary": "",
+        "user_sentiment": "Unknown",
+        "custom_analysis_data": {},
+        "call_successful": false
+      },
+      "opt_out_sensitive_data_storage": false,
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "from_number": "+17753707009",
+      "to_number": "+5491111110005",
+      "direction": "outbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA3773e7ee3eb37625f3717e3f5e7f22cf"
+      }
+    },
+    "timestamp": {
+      "$date": "2025-09-29T03:52:54.767Z"
+    }
+  },
+  "last_attempt_result": "not_connected",
+  "next_try_at": {
+    "$date": "2025-09-29T04:52:54.767Z"
+  },
+  "last_error": "No quedan teléfonos por intentar"
+}]

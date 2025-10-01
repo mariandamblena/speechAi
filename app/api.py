@@ -18,6 +18,7 @@ from services.account_service import AccountService
 from services.batch_service import BatchService
 from services.batch_creation_service import BatchCreationService
 from services.chile_batch_service import ChileBatchService
+from services.argentina_batch_service import ArgentinaBatchService
 from services.job_service import JobService
 from infrastructure.database_manager import DatabaseManager
 from config.settings import get_settings
@@ -93,12 +94,13 @@ account_service = None
 batch_service = None
 batch_creation_service = None
 chile_batch_service = None
+argentina_batch_service = None
 job_service = None
 
 @app.on_event("startup")
 async def startup_event():
     """Inicializar servicios al arrancar la API"""
-    global db_manager, account_service, batch_service, batch_creation_service, chile_batch_service, job_service
+    global db_manager, account_service, batch_service, batch_creation_service, chile_batch_service, argentina_batch_service, job_service
     
     db_manager = DatabaseManager(settings.database.uri, settings.database.database)
     await db_manager.connect()
@@ -107,6 +109,7 @@ async def startup_event():
     batch_service = BatchService(db_manager)
     batch_creation_service = BatchCreationService(db_manager)
     chile_batch_service = ChileBatchService(db_manager)
+    argentina_batch_service = ArgentinaBatchService(db_manager)
     job_service = JobService(db_manager)
     
     logging.info("API initialized successfully")
@@ -130,6 +133,9 @@ async def get_batch_creation_service() -> BatchCreationService:
 
 async def get_chile_batch_service() -> ChileBatchService:
     return chile_batch_service
+
+async def get_argentina_batch_service() -> ArgentinaBatchService:
+    return argentina_batch_service
 
 async def get_job_service() -> JobService:
     return job_service
@@ -802,6 +808,93 @@ async def create_chile_batch_for_use_case(
         logging.error(f"Error creating Chile batch for {use_case}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
+@app.post("/api/v1/batches/argentina/{use_case}")
+async def create_argentina_batch_for_use_case(
+    use_case: str,
+    file: UploadFile = File(...),
+    account_id: str = Form(...),
+    company_name: str = Form(...),
+    batch_name: Optional[str] = Form(None),
+    batch_description: Optional[str] = Form(None),
+    allow_duplicates: bool = Form(False),
+    # Campos específicos por caso de uso
+    discount_percentage: Optional[float] = Form(0.0),  # Para marketing
+    offer_description: Optional[str] = Form(""),       # Para marketing
+    product_category: Optional[str] = Form("general"), # Para marketing
+    retell_agent_id: Optional[str] = Form(None),
+    argentina_service: ArgentinaBatchService = Depends(get_argentina_batch_service)
+):
+    """
+    NUEVO: Crea batch argentino para cualquier caso de uso
+    
+    Casos de uso soportados:
+    - debt_collection: Cobranza de deudas
+    - marketing: Campañas de marketing
+    
+    Normalización argentina automática:
+    - DNI: 12.345.678 → 12345678
+    - Teléfonos: 11-2345-6789 → +5491123456789
+    - Fechas: 01/09/2025 → 2025-09-01
+    """
+    try:
+        # Validar caso de uso
+        valid_use_cases = ['debt_collection', 'marketing']
+        if use_case not in valid_use_cases:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Caso de uso '{use_case}' no válido. Disponibles: {valid_use_cases}"
+            )
+        
+        # Leer archivo
+        file_content = await file.read()
+        
+        # Configuración específica por caso de uso
+        if use_case == 'debt_collection':
+            use_case_config = {
+                'company_name': company_name,
+                'retell_agent_id': retell_agent_id,
+                'max_attempts': 3
+            }
+        elif use_case == 'marketing':
+            use_case_config = {
+                'company_name': company_name,
+                'offer_description': offer_description,
+                'discount_percentage': discount_percentage,
+                'product_category': product_category,
+                'retell_agent_id': retell_agent_id,
+                'max_attempts': 2,
+                'campaign_type': 'promotional'
+            }
+        
+        # Procesar con ArgentinaBatchService
+        result = await argentina_service.create_batch_for_use_case(
+            file_content=file_content,
+            account_id=account_id,
+            use_case=use_case,
+            use_case_config=use_case_config,
+            batch_name=batch_name,
+            batch_description=batch_description,
+            allow_duplicates=allow_duplicates
+        )
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "message": f"Batch argentino de {use_case} creado exitosamente",
+                "batch_id": result["batch_id"],
+                "use_case": use_case,
+                "country": "AR",
+                "stats": result["stats"]
+            }
+        else:
+            raise HTTPException(status_code=400, detail=result.get("error", "Error desconocido"))
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error creating Argentina batch for {use_case}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
 @app.get("/api/v1/use-cases")
 async def get_available_use_cases():
     """Lista todos los casos de uso disponibles"""
@@ -813,8 +906,12 @@ async def get_available_use_cases():
             "success": True,
             "use_cases": registry.get_available_use_cases(),
             "description": {
-                "debt_collection": "Cobranza de deudas con normalización chilena",
+                "debt_collection": "Cobranza de deudas con normalización por país",
                 "marketing": "Campañas de marketing personalizadas"
+            },
+            "countries": {
+                "chile": "/api/v1/batches/chile/{use_case}",
+                "argentina": "/api/v1/batches/argentina/{use_case}"
             }
         }
     except Exception as e:

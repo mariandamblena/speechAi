@@ -43,10 +43,49 @@ class DebtCollectionPayload(CallPayload):
             'dias_vencidos': str(self.overdue_days),
             'tipo_deuda': self.debt_type,
             'opciones_pago': '|'.join(self.payment_options),
-            'urgencia': 'alta' if self.overdue_days > 30 else 'media' if self.overdue_days > 0 else 'baja'
+            'urgencia': 'alta' if self.overdue_days > 30 else 'media' if self.overdue_days > 0 else 'baja',
+            
+            # Variables específicas requeridas por el prompt de Retell
+            'cuotas_adeudadas': str(self.additional_info.get('cantidad_cupones', 1)),
+            'fecha_limite': self._format_date_for_speech(self.due_date),  # Formato hablado
+            'fecha_maxima': self._format_date_for_speech(self.additional_info.get('fecha_maxima', '')),
+            'monto_total': str(int(self.debt_amount)),  # Sin decimales para el prompt
+            'empresa': self.company_name,
+            # El nombre se agrega desde JobModel.get_context_for_retell()
+            
+            # Información adicional para el contexto
+            'cantidad_cupones': str(self.additional_info.get('cantidad_cupones', 1)),
+            'rut': self.additional_info.get('rut', ''),
         }
         
         return {**base_context, **debt_context}
+
+    def _format_date_for_speech(self, iso_date: str) -> str:
+        """Convierte fecha ISO (2025-09-28) a formato legible para voz"""
+        if not iso_date:
+            return ""
+        
+        try:
+            # Parsear fecha ISO
+            if 'T' in iso_date:  # Si tiene hora, extraer solo fecha
+                iso_date = iso_date.split('T')[0]
+            
+            from datetime import datetime
+            date_obj = datetime.fromisoformat(iso_date)
+            
+            # Mapeo de meses en español
+            meses = [
+                '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+            ]
+            
+            dia = date_obj.day
+            mes = meses[date_obj.month]
+            año = date_obj.year
+            
+            return f"{dia} de {mes} de {año}"
+        except (ValueError, IndexError):
+            return iso_date  # Fallback: retornar fecha original
 
 
 class DebtCollectionProcessor:

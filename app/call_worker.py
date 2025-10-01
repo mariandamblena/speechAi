@@ -199,6 +199,12 @@ class JobStore:
     def __init__(self, coll, db=None):
         self.coll = coll
         self.db = db
+        
+        # Check if we can update account/batch usage
+        if db is not None:
+            print("[DEBUG] JobStore initialized with database access for usage tracking")
+        else:
+            print("[WARNING] JobStore initialized without database access - usage tracking disabled")
 
     def claim_one(self, worker_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -395,10 +401,116 @@ class JobStore:
         try:
             self.coll.update_one({"_id": job_id}, {"$set": update_fields})
             print(f"[DEBUG] [{job_id}] Resultado guardado: success={is_success}, status={call_result.get('call_status')}")
+            
+            # 🔥 NEW: Update account and batch usage when call is successful
+            if is_success and self.db is not None:
+                try:
+                    self._update_account_and_batch_usage_sync(job_id, call_duration, call_result)
+                except Exception as e:
+                    print(f"[ERROR] [{job_id}] Failed to update account/batch usage: {e}")
+                    
             if not is_success:
                 print(f"[DEBUG] [{job_id}] Próximo intento programado para: {update_fields.get('next_try_at')}")
         except PyMongoError as e:
             logging.error(f"save_call_result error: {e}")
+
+    def _update_account_and_batch_usage_sync(self, job_id, call_duration: int, call_result: Dict[str, Any]):
+        """Update account and batch usage after successful call using direct MongoDB operations"""
+        
+        # Get job details to extract account_id and batch_id
+        job = self.coll.find_one({"_id": job_id}, {"account_id": 1, "batch_id": 1})
+        if not job:
+            print(f"[ERROR] [{job_id}] Job not found for usage update")
+            return
+            
+        account_id = job.get("account_id")
+        batch_id = job.get("batch_id")
+        
+        if not account_id:
+            print(f"[ERROR] [{job_id}] No account_id found for usage update")
+            return
+            
+        # Calculate call duration in minutes
+        call_minutes = 0.0
+        if call_duration:
+            call_minutes = call_duration / 60.0
+        elif call_result and call_result.get("duration_ms"):
+            call_minutes = call_result["duration_ms"] / (1000 * 60.0)
+            
+        if call_minutes <= 0:
+            call_minutes = 0.1  # Minimum billing unit
+            
+        print(f"[DEBUG] [{job_id}] Updating usage: {call_minutes:.2f} minutes for account {account_id}")
+        
+        # Extract call cost if available
+        call_cost = None
+        if call_result and call_result.get("call_cost"):
+            cost_data = call_result["call_cost"]
+            if isinstance(cost_data, dict):
+                call_cost = cost_data.get("combined_cost") or cost_data.get("total_cost")
+            elif isinstance(cost_data, (int, float)):
+                call_cost = float(cost_data)
+                
+        try:
+            # Update account usage directly with MongoDB
+            accounts_collection = self.db.accounts
+            
+            # Update account: increment minutes_used and calls_today
+            account_update = {
+                "$inc": {
+                    "minutes_used": call_minutes,
+                    "calls_today": 1
+                },
+                "$set": {
+                    "updated_at": utcnow()
+                }
+            }
+            
+            # Also update credit_used if we have call_cost
+            if call_cost:
+                account_update["$inc"]["credit_used"] = call_cost
+            
+            account_result = accounts_collection.update_one(
+                {"account_id": account_id},
+                account_update
+            )
+            
+            if account_result.modified_count > 0:
+                print(f"[DEBUG] [{job_id}] ✅ Account usage updated: {call_minutes:.2f} minutes for {account_id}")
+            else:
+                print(f"[WARNING] [{job_id}] Account {account_id} not found or not updated")
+            
+            # Update batch statistics if batch_id exists
+            if batch_id:
+                batches_collection = self.db.batches
+                
+                # Calculate cost in dollars (assuming call_cost is in dollars)
+                cost_to_add = call_cost if call_cost else (call_minutes * 0.15)  # Default rate
+                
+                batch_update = {
+                    "$inc": {
+                        "total_cost": cost_to_add,
+                        "total_minutes": call_minutes,
+                        "completed_jobs": 1
+                    },
+                    "$set": {
+                        "updated_at": utcnow()
+                    }
+                }
+                
+                batch_result = batches_collection.update_one(
+                    {"batch_id": batch_id},
+                    batch_update
+                )
+                
+                if batch_result.modified_count > 0:
+                    print(f"[DEBUG] [{job_id}] ✅ Batch stats updated for batch {batch_id}")
+                else:
+                    print(f"[WARNING] [{job_id}] Batch {batch_id} not found or not updated")
+                    
+        except Exception as e:
+            print(f"[ERROR] [{job_id}] Failed to update account/batch usage: {e}")
+            logging.error(f"Account/batch update error for job {job_id}: {e}")
 
     def mark_failed(self, job_id, reason: str, terminal=False):
         new_status = "failed" if terminal else "pending"

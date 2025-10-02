@@ -10,6 +10,7 @@ class JobStatus(Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    DONE = "done"  # Agregado para compatibilidad con call_worker
     FAILED = "failed"
     SUSPENDED = "suspended"  # Nuevo: Para jobs sin créditos
 

@@ -445,6 +445,167 @@ class JobService:
         else:
             return self.config.retry_delay_minutes
     
+    async def get_account_job_stats(self, account_id: str) -> Dict[str, Any]:
+        """
+        Obtiene estadísticas de jobs para una cuenta específica
+        
+        Args:
+            account_id: ID de la cuenta
+            
+        Returns:
+            Diccionario con estadísticas de jobs
+        """
+        try:
+            # Aggregation pipeline para obtener estadísticas
+            pipeline = [
+                {"$match": {"account_id": account_id}},
+                {"$group": {
+                    "_id": "$status",
+                    "count": {"$sum": 1},
+                    "total_cost": {"$sum": {"$ifNull": ["$call_result.call_cost.combined_cost", 0]}},
+                    "total_minutes": {"$sum": {"$divide": [
+                        {"$ifNull": ["$call_result.duration_ms", 0]}, 
+                        60000
+                    ]}}
+                }}
+            ]
+            
+            stats_cursor = self.jobs_collection.aggregate(pipeline)
+            stats = {}
+            total_jobs = 0
+            total_cost = 0
+            total_minutes = 0
+            
+            async for stat in stats_cursor:
+                status = stat["_id"]
+                count = stat["count"]
+                stats[status] = count
+                total_jobs += count
+                total_cost += stat.get("total_cost", 0)
+                total_minutes += stat.get("total_minutes", 0)
+            
+            return {
+                "account_id": account_id,
+                "total_jobs": total_jobs,
+                "stats_by_status": stats,
+                "pending": stats.get("pending", 0),
+                "in_progress": stats.get("in_progress", 0),
+                "completed": stats.get("completed", 0) + stats.get("done", 0),
+                "failed": stats.get("failed", 0),
+                "suspended": stats.get("suspended", 0),
+                "total_cost": round(total_cost, 2),
+                "total_minutes": round(total_minutes, 2),
+                "success_rate": round(
+                    (stats.get("completed", 0) + stats.get("done", 0)) / max(total_jobs, 1) * 100, 2
+                ) if total_jobs > 0 else 0
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting account job stats for {account_id}: {e}")
+            return {
+                "account_id": account_id,
+                "total_jobs": 0,
+                "stats_by_status": {},
+                "pending": 0,
+                "in_progress": 0,
+                "completed": 0,
+                "failed": 0,
+                "suspended": 0,
+                "total_cost": 0,
+                "total_minutes": 0,
+                "success_rate": 0
+            }
+    
+    async def get_call_history(self, filters: Dict[str, Any], limit: int = 100, skip: int = 0) -> Dict[str, Any]:
+        """
+        Obtiene historial de llamadas con filtros
+        
+        Args:
+            filters: Filtros a aplicar (account_id, status, date_range, etc.)
+            limit: Número máximo de registros
+            skip: Número de registros a saltar
+            
+        Returns:
+            Diccionario con historial de llamadas y metadata
+        """
+        try:
+            # Construir query de filtros
+            query = {}
+            
+            if filters.get("account_id"):
+                query["account_id"] = filters["account_id"]
+            
+            if filters.get("status"):
+                query["status"] = filters["status"]
+            
+            if filters.get("batch_id"):
+                query["batch_id"] = filters["batch_id"]
+            
+            # Filtro de fecha
+            if filters.get("start_date") or filters.get("end_date"):
+                date_filter = {}
+                if filters.get("start_date"):
+                    date_filter["$gte"] = datetime.fromisoformat(filters["start_date"])
+                if filters.get("end_date"):
+                    date_filter["$lte"] = datetime.fromisoformat(filters["end_date"])
+                query["created_at"] = date_filter
+            
+            # Solo jobs con resultados de llamada
+            query["call_result"] = {"$exists": True}
+            
+            # Contar total
+            total = await self.jobs_collection.count_documents(query)
+            
+            # Obtener registros
+            cursor = self.jobs_collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
+            calls = []
+            
+            async for doc in cursor:
+                call_data = {
+                    "job_id": str(doc.get("_id")),
+                    "account_id": doc.get("account_id"),
+                    "batch_id": doc.get("batch_id"),
+                    "status": doc.get("status"),
+                    "contact_name": doc.get("nombre", ""),
+                    "phone_number": doc.get("to_number", ""),
+                    "created_at": doc.get("created_at"),
+                    "finished_at": doc.get("finished_at"),
+                    "call_duration_seconds": doc.get("call_duration_seconds", 0),
+                    "call_result": doc.get("call_result", {}),
+                }
+                
+                # Extraer información del resultado
+                call_result = doc.get("call_result", {})
+                if call_result:
+                    call_data.update({
+                        "call_status": call_result.get("status", "unknown"),
+                        "call_cost": call_result.get("summary", {}).get("call_cost", {}),
+                        "transcript": call_result.get("summary", {}).get("transcript", ""),
+                        "recording_url": call_result.get("summary", {}).get("recording_url", ""),
+                        "collected_variables": call_result.get("summary", {}).get("collected_dynamic_variables", {})
+                    })
+                
+                calls.append(call_data)
+            
+            return {
+                "calls": calls,
+                "total": total,
+                "limit": limit,
+                "skip": skip,
+                "has_more": skip + limit < total
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting call history: {e}")
+            return {
+                "calls": [],
+                "total": 0,
+                "limit": limit,
+                "skip": skip,
+                "has_more": False,
+                "error": str(e)
+            }
+    
     def _utcnow(self) -> datetime:
         """Obtiene datetime UTC actual"""
         return datetime.now(timezone.utc)

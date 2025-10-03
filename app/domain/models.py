@@ -203,6 +203,15 @@ class JobModel:
                 "next_phone_index": self.contact.next_phone_index,
             }
             
+            # Extraer campos de contacto al nivel raíz para compatibilidad
+            data["nombre"] = self.contact.name
+            data["rut"] = self.contact.dni
+            data["to_number"] = self.contact.current_phone
+            
+            # Formatear RUT si es válido
+            if self.contact.dni:
+                data["rut_fmt"] = self.contact.dni
+            
         if self.payload:
             data["payload"] = {
                 "debt_amount": self.payload.debt_amount,
@@ -211,6 +220,23 @@ class JobModel:
                 "reference_number": self.payload.reference_number,
                 "additional_info": self.payload.additional_info,
             }
+            
+            # Extraer campos importantes al nivel raíz para compatibilidad con call_worker
+            if hasattr(self.payload, 'debt_amount'):
+                data["monto_total"] = self.payload.debt_amount
+                data["deuda"] = self.payload.debt_amount
+            
+            if hasattr(self.payload, 'due_date'):
+                data["fecha_limite"] = self.payload.due_date
+            
+            if hasattr(self.payload, 'company_name'):
+                data["origen_empresa"] = self.payload.company_name
+            
+            # Extraer campos del additional_info al nivel raíz
+            if self.payload.additional_info:
+                for key, value in self.payload.additional_info.items():
+                    if key in ['cantidad_cupones', 'fecha_maxima', 'rut', 'batch_origen']:
+                        data[key] = value
         
         # Campos opcionales
         optional_fields = [

@@ -221,8 +221,19 @@ class JobStore:
         try:
             doc = self.coll.find_one_and_update(
                 filter={
-                    "status": "pending"
-                    # Filtro simplificado para debug - temporalmente menos restrictivo
+                    "$or": [
+                        # Jobs pending normales
+                        {"status": "pending"},
+                        # Jobs failed listos para retry
+                        {
+                            "status": "failed",
+                            "attempts": {"$lt": MAX_TRIES},
+                            "$or": [
+                                {"next_try_at": {"$exists": False}},
+                                {"next_try_at": {"$lte": now}}
+                            ]
+                        }
+                    ]
                 },
                 update={
                     "$set": {
@@ -393,7 +404,7 @@ class JobStore:
                 
             next_try = now + dt.timedelta(minutes=delay_minutes)
             update_fields.update({
-                "status": "pending", 
+                "status": "failed", 
                 "next_try_at": next_try,
                 "last_attempt_result": call_status
             })
@@ -597,9 +608,24 @@ class CallOrchestrator:
         
         # Verificar si quedan más teléfonos
         if next_index >= len(phones):
-            # No quedan teléfonos: fallo terminal
+            # No quedan teléfonos: resetear índice para próximo intento
             print(f"[DEBUG] [{job_id}] ❌ No quedan más teléfonos (índice {next_index} >= {len(phones)})")
-            self.job_store.mark_failed(job["_id"], "No quedan teléfonos por intentar", terminal=True)
+            print(f"[DEBUG] [{job_id}] Reseteando next_phone_index a 0 para próximo intento")
+            
+            # Resetear índice de teléfono para el próximo intento  
+            try:
+                self.job_store.coll.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {
+                        "contact.next_phone_index": 0,
+                        "updated_at": utcnow()
+                    }}
+                )
+                print(f"[DEBUG] [{job_id}] next_phone_index reseteado a 0")
+            except Exception as e:
+                logging.warning(f"Error reseteando next_phone_index: {e}")
+            
+            self.job_store.mark_failed(job["_id"], "No quedan teléfonos por intentar", terminal=False)
 
     def _context_from_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -651,6 +677,15 @@ class CallOrchestrator:
                         'dias_vencidos': str(payload_data.get('overdue_days', 0)),
                         'tipo_deuda': str(payload_data.get('debt_type', '')),
                     })
+                    
+                    # AGREGAR VARIABLES DE ADDITIONAL_INFO para cobranza
+                    additional_info = payload_data.get('additional_info', {})
+                    if additional_info:
+                        context.update({
+                            'cantidad_cupones': str(additional_info.get('cantidad_cupones', '')),
+                            'fecha_maxima': str(additional_info.get('fecha_maxima', '')),
+                            'cuotas_adeudadas': str(additional_info.get('cantidad_cupones', '')),
+                        })
             
             # Agregar información del contacto
             contact_data = job.get("contact", {})

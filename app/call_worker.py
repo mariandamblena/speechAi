@@ -27,8 +27,8 @@ logging.basicConfig(
 )
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-MONGO_DB = os.getenv("MONGO_DB", "Debtors")
-MONGO_COLL_JOBS = os.getenv("MONGO_COLL_JOBS", "call_jobs")
+MONGO_DB = os.getenv("MONGO_DB", "speechai_db")
+MONGO_COLL_JOBS = os.getenv("MONGO_COLL_JOBS", "jobs")  # Cambiar default a "jobs"
 MONGO_COLL_LOGS = os.getenv("MONGO_COLL_LOGS", "call_logs")
 
 RETELL_API_KEY = os.getenv("RETELL_API_KEY") or ""
@@ -199,6 +199,12 @@ class JobStore:
     def __init__(self, coll, db=None):
         self.coll = coll
         self.db = db
+        
+        # Check if we can update account/batch usage
+        if db is not None:
+            print("[DEBUG] JobStore initialized with database access for usage tracking")
+        else:
+            print("[WARNING] JobStore initialized without database access - usage tracking disabled")
 
     def claim_one(self, worker_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -215,8 +221,19 @@ class JobStore:
         try:
             doc = self.coll.find_one_and_update(
                 filter={
-                    "status": "pending"
-                    # Filtro simplificado para debug - temporalmente menos restrictivo
+                    "$or": [
+                        # Jobs pending normales
+                        {"status": "pending"},
+                        # Jobs failed listos para retry
+                        {
+                            "status": "failed",
+                            "attempts": {"$lt": MAX_TRIES},
+                            "$or": [
+                                {"next_try_at": {"$exists": False}},
+                                {"next_try_at": {"$lte": now}}
+                            ]
+                        }
+                    ]
                 },
                 update={
                     "$set": {
@@ -387,7 +404,7 @@ class JobStore:
                 
             next_try = now + dt.timedelta(minutes=delay_minutes)
             update_fields.update({
-                "status": "pending", 
+                "status": "failed", 
                 "next_try_at": next_try,
                 "last_attempt_result": call_status
             })
@@ -395,10 +412,116 @@ class JobStore:
         try:
             self.coll.update_one({"_id": job_id}, {"$set": update_fields})
             print(f"[DEBUG] [{job_id}] Resultado guardado: success={is_success}, status={call_result.get('call_status')}")
+            
+            # 🔥 NEW: Update account and batch usage when call is successful
+            if is_success and self.db is not None:
+                try:
+                    self._update_account_and_batch_usage_sync(job_id, call_duration, call_result)
+                except Exception as e:
+                    print(f"[ERROR] [{job_id}] Failed to update account/batch usage: {e}")
+                    
             if not is_success:
                 print(f"[DEBUG] [{job_id}] Próximo intento programado para: {update_fields.get('next_try_at')}")
         except PyMongoError as e:
             logging.error(f"save_call_result error: {e}")
+
+    def _update_account_and_batch_usage_sync(self, job_id, call_duration: int, call_result: Dict[str, Any]):
+        """Update account and batch usage after successful call using direct MongoDB operations"""
+        
+        # Get job details to extract account_id and batch_id
+        job = self.coll.find_one({"_id": job_id}, {"account_id": 1, "batch_id": 1})
+        if not job:
+            print(f"[ERROR] [{job_id}] Job not found for usage update")
+            return
+            
+        account_id = job.get("account_id")
+        batch_id = job.get("batch_id")
+        
+        if not account_id:
+            print(f"[ERROR] [{job_id}] No account_id found for usage update")
+            return
+            
+        # Calculate call duration in minutes
+        call_minutes = 0.0
+        if call_duration:
+            call_minutes = call_duration / 60.0
+        elif call_result and call_result.get("duration_ms"):
+            call_minutes = call_result["duration_ms"] / (1000 * 60.0)
+            
+        if call_minutes <= 0:
+            call_minutes = 0.1  # Minimum billing unit
+            
+        print(f"[DEBUG] [{job_id}] Updating usage: {call_minutes:.2f} minutes for account {account_id}")
+        
+        # Extract call cost if available
+        call_cost = None
+        if call_result and call_result.get("call_cost"):
+            cost_data = call_result["call_cost"]
+            if isinstance(cost_data, dict):
+                call_cost = cost_data.get("combined_cost") or cost_data.get("total_cost")
+            elif isinstance(cost_data, (int, float)):
+                call_cost = float(cost_data)
+                
+        try:
+            # Update account usage directly with MongoDB
+            accounts_collection = self.db.accounts
+            
+            # Update account: increment minutes_used and calls_today
+            account_update = {
+                "$inc": {
+                    "minutes_used": call_minutes,
+                    "calls_today": 1
+                },
+                "$set": {
+                    "updated_at": utcnow()
+                }
+            }
+            
+            # Also update credit_used if we have call_cost
+            if call_cost:
+                account_update["$inc"]["credit_used"] = call_cost
+            
+            account_result = accounts_collection.update_one(
+                {"account_id": account_id},
+                account_update
+            )
+            
+            if account_result.modified_count > 0:
+                print(f"[DEBUG] [{job_id}] ✅ Account usage updated: {call_minutes:.2f} minutes for {account_id}")
+            else:
+                print(f"[WARNING] [{job_id}] Account {account_id} not found or not updated")
+            
+            # Update batch statistics if batch_id exists
+            if batch_id:
+                batches_collection = self.db.batches
+                
+                # Calculate cost in dollars (assuming call_cost is in dollars)
+                cost_to_add = call_cost if call_cost else (call_minutes * 0.15)  # Default rate
+                
+                batch_update = {
+                    "$inc": {
+                        "total_cost": cost_to_add,
+                        "total_minutes": call_minutes,
+                        "completed_jobs": 1
+                    },
+                    "$set": {
+                        "updated_at": utcnow()
+                    }
+                }
+                
+                batch_result = batches_collection.update_one(
+                    {"batch_id": batch_id},
+                    batch_update
+                )
+                
+                if batch_result.modified_count > 0:
+                    print(f"[DEBUG] [{job_id}] ✅ Batch stats updated for batch {batch_id}")
+                else:
+                    print(f"[WARNING] [{job_id}] Batch {batch_id} not found or not updated")
+                    
+        except Exception as e:
+            print(f"[ERROR] [{job_id}] Failed to update account/batch usage: {e}")
+            logging.error(f"Account/batch update error for job {job_id}: {e}")
 
     def mark_failed(self, job_id, reason: str, terminal=False):
         new_status = "failed" if terminal else "pending"
@@ -485,36 +608,112 @@ class CallOrchestrator:
         
         # Verificar si quedan más teléfonos
         if next_index >= len(phones):
-            # No quedan teléfonos: fallo terminal
+            # No quedan teléfonos: resetear índice para próximo intento
             print(f"[DEBUG] [{job_id}] ❌ No quedan más teléfonos (índice {next_index} >= {len(phones)})")
-            self.job_store.mark_failed(job["_id"], "No quedan teléfonos por intentar", terminal=True)
+            print(f"[DEBUG] [{job_id}] Reseteando next_phone_index a 0 para próximo intento")
+            
+            # Resetear índice de teléfono para el próximo intento  
+            try:
+                self.job_store.coll.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {
+                        "contact.next_phone_index": 0,
+                        "updated_at": utcnow()
+                    }}
+                )
+                print(f"[DEBUG] [{job_id}] next_phone_index reseteado a 0")
+            except Exception as e:
+                logging.warning(f"Error reseteando next_phone_index: {e}")
+            
+            self.job_store.mark_failed(job["_id"], "No quedan teléfonos por intentar", terminal=False)
 
     def _context_from_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
         """
         Mapear datos del job a variables dinámicas que espera el agente Retell.
-        Variables basadas en el prompt de Retell y tu workflow n8n:
-        - {{nombre}}, {{empresa}}, {{cuotas_adeudadas}}, {{monto_total}}, {{fecha_limite}}, {{fecha_maxima}}
+        Usa el payload.to_retell_context() si existe, sino fallback a lógica legacy.
         IMPORTANTE: Retell requiere que TODOS los valores sean strings.
         """
-        # Generar timestamp actual en formato Chile (como en workflow n8n)
-        import datetime
-        now_chile = datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p CLT")
+        try:
+            from utils.timezone_utils import chile_time_display
+        except ImportError:
+            # Fallback si no se puede importar la utilidad
+            import datetime
+            def chile_time_display():
+                return datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p CLT")
         
+        now_chile = chile_time_display()  # Usa nuestra utilidad centralizada
+        
+        # Intentar usar el payload del job (nueva arquitectura)
+        payload_data = job.get("payload", {})
+        if payload_data and isinstance(payload_data, dict):
+            # Si el payload tiene el contexto pre-generado, usarlo
+            if hasattr(payload_data, 'to_retell_context'):
+                context = payload_data.to_retell_context()
+            else:
+                # Construir contexto desde payload dict
+                context = {}
+                
+                # Para marketing
+                if payload_data.get('offer_description'):
+                    context.update({
+                        'tipo_llamada': 'marketing',
+                        'empresa': str(payload_data.get('company_name', '')),
+                        'descripcion_oferta': str(payload_data.get('offer_description', '')),
+                        'descuento_porcentaje': str(payload_data.get('discount_percentage', 0)),
+                        'categoria_producto': str(payload_data.get('product_category', '')),
+                        'segmento_cliente': str(payload_data.get('customer_segment', '')),
+                        'tipo_campana': str(payload_data.get('campaign_type', '')),
+                        'llamada_accion': str(payload_data.get('call_to_action', '')),
+                        'valor_oferta': str(payload_data.get('offer_value', 0)),
+                        'oferta_expira': str(payload_data.get('offer_expires', '')),
+                    })
+                # Para debt collection
+                elif payload_data.get('debt_amount'):
+                    context.update({
+                        'tipo_llamada': 'cobranza',
+                        'empresa': str(payload_data.get('company_name', '')),
+                        'monto_total': str(payload_data.get('debt_amount', '')),
+                        'fecha_limite': str(payload_data.get('due_date', '')),
+                        'dias_vencidos': str(payload_data.get('overdue_days', 0)),
+                        'tipo_deuda': str(payload_data.get('debt_type', '')),
+                    })
+                    
+                    # AGREGAR VARIABLES DE ADDITIONAL_INFO para cobranza
+                    additional_info = payload_data.get('additional_info', {})
+                    if additional_info:
+                        context.update({
+                            'cantidad_cupones': str(additional_info.get('cantidad_cupones', '')),
+                            'fecha_maxima': str(additional_info.get('fecha_maxima', '')),
+                            'cuotas_adeudadas': str(additional_info.get('cantidad_cupones', '')),
+                        })
+            
+            # Agregar información del contacto
+            contact_data = job.get("contact", {})
+            if contact_data:
+                context.update({
+                    'nombre': str(contact_data.get('name', '')),
+                    'RUT': str(contact_data.get('dni', '')),
+                })
+            
+            # Agregar timestamp
+            context['current_time_America_Santiago'] = now_chile
+            
+            return {k: v for k, v in context.items() if v and v != "None"}
+        
+        # Fallback: Lógica legacy para jobs antiguos
         ctx = {
-            "nombre": str(job.get("nombre", "")),  # Para {{nombre}}
-            "empresa": str(job.get("origen_empresa", "")),  # Para {{empresa}}
-            "RUT": str(job.get("rut_fmt") or job.get("rut", "")),  # Para {{RUT}}
-            "cantidad_cupones": str(job.get("cantidad_cupones", "")),  # Para {{cantidad_cupones}}
-            "cuotas_adeudadas": str(job.get("cantidad_cupones", "")),  # Para {{cuotas_adeudadas}} - mismo valor que cantidad_cupones
-            "monto_total": str(job.get("monto_total", "")),  # Para {{monto_total}}
-            "fecha_limite": str(job.get("fecha_limite", "")),  # Para {{fecha_limite}}
-            "fecha_maxima": str(job.get("fecha_maxima", "")),  # Para {{fecha_maxima}}
-            "fecha_pago_cliente": "",  # Vacío como en workflow
-            # Timestamp actual (como en workflow n8n)
+            "nombre": str(job.get("nombre", "")),
+            "empresa": str(job.get("origen_empresa", "")),
+            "RUT": str(job.get("rut_fmt") or job.get("rut", "")),
+            "cantidad_cupones": str(job.get("cantidad_cupones", "")),
+            "cuotas_adeudadas": str(job.get("cantidad_cupones", "")),
+            "monto_total": str(job.get("monto_total", "")),
+            "fecha_limite": str(job.get("fecha_limite", "")),
+            "fecha_maxima": str(job.get("fecha_maxima", "")),
+            "fecha_pago_cliente": "",
             "current_time_America_Santiago": now_chile,
-            "current_time_America/Santiago": now_chile,  # Por si usa formato con slash
         }
-        return {k: v for k, v in ctx.items() if v and v != "None"}  # Excluir valores vacíos o "None"
+        return {k: v for k, v in ctx.items() if v and v != "None"}
 
     def process(self, job: Dict[str, Any]):
         job_id = job["_id"]
@@ -552,7 +751,10 @@ class CallOrchestrator:
                     if plan_type == "unlimited":
                         has_balance = True
                     elif plan_type == "minutes_based":
-                        minutes_remaining = account_doc.get('minutes_remaining', 0)
+                        minutes_purchased = account_doc.get('minutes_purchased', 0)
+                        minutes_used = account_doc.get('minutes_used', 0) 
+                        minutes_reserved = account_doc.get('minutes_reserved', 0)
+                        minutes_remaining = max(0, minutes_purchased - minutes_used - minutes_reserved)
                         has_balance = minutes_remaining > 0
                         if not has_balance:
                             error_msg = f"Sin minutos disponibles (restantes: {minutes_remaining})"

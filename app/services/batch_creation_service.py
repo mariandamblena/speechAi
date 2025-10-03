@@ -87,7 +87,7 @@ class BatchCreationService:
             batch = BatchModel(
                 account_id=account_id,
                 batch_id=batch_id,
-                name=batch_name or f"Batch {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                name=batch_name or f"Batch {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
                 description=batch_description or f"Importado desde Excel con {len(valid_debtors)} deudores",
                 total_jobs=len(valid_debtors),
                 pending_jobs=len(valid_debtors),

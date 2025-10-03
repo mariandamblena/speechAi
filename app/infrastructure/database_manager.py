@@ -53,7 +53,7 @@ class DatabaseManager:
     @property
     def jobs(self) -> AsyncIOMotorCollection:
         """Colección de jobs de llamadas"""
-        return self.get_collection("call_jobs")
+        return self.get_collection("jobs")
     
     @property
     def batches(self) -> AsyncIOMotorCollection:
@@ -62,8 +62,8 @@ class DatabaseManager:
     
     @property
     def debtors(self) -> AsyncIOMotorCollection:
-        """Colección de deudores (compatible con workflow Adquisicion_v3)"""
-        return self.get_collection("Debtors")
+        """Colección de deudores"""
+        return self.get_collection("debtors")
     
     @property
     def call_results(self) -> AsyncIOMotorCollection:
@@ -80,3 +80,88 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Health check failed: {e}")
             return False
+    
+    # ============================================================================
+    # MÉTODOS DE OPERACIONES CRUD
+    # ============================================================================
+    
+    async def find_documents(self, collection_name: str, filter_dict: Dict[str, Any] = None) -> list:
+        """Busca documentos en una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            cursor = collection.find(filter_dict or {})
+            documents = await cursor.to_list(length=None)
+            return documents
+        except Exception as e:
+            self.logger.error(f"Error finding documents in {collection_name}: {e}")
+            raise
+    
+    async def find_one_document(self, collection_name: str, filter_dict: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Busca un documento en una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            document = await collection.find_one(filter_dict)
+            return document
+        except Exception as e:
+            self.logger.error(f"Error finding document in {collection_name}: {e}")
+            raise
+    
+    async def insert_document(self, collection_name: str, document: Dict[str, Any]):
+        """Inserta un documento en una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.insert_one(document)
+            return result
+        except Exception as e:
+            self.logger.error(f"Error inserting document in {collection_name}: {e}")
+            raise
+    
+    async def insert_many_documents(self, collection_name: str, documents: list):
+        """Inserta múltiples documentos en una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.insert_many(documents)
+            return result
+        except Exception as e:
+            self.logger.error(f"Error inserting documents in {collection_name}: {e}")
+            raise
+    
+    async def update_document(self, collection_name: str, filter_dict: Dict[str, Any], update_dict: Dict[str, Any]):
+        """Actualiza un documento en una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.update_one(filter_dict, update_dict)
+            return result
+        except Exception as e:
+            self.logger.error(f"Error updating document in {collection_name}: {e}")
+            raise
+    
+    async def update_many_documents(self, collection_name: str, filter_dict: Dict[str, Any], update_dict: Dict[str, Any]):
+        """Actualiza múltiples documentos en una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.update_many(filter_dict, update_dict)
+            return result
+        except Exception as e:
+            self.logger.error(f"Error updating documents in {collection_name}: {e}")
+            raise
+    
+    async def delete_document(self, collection_name: str, filter_dict: Dict[str, Any]):
+        """Elimina un documento de una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.delete_one(filter_dict)
+            return result
+        except Exception as e:
+            self.logger.error(f"Error deleting document from {collection_name}: {e}")
+            raise
+    
+    async def delete_many_documents(self, collection_name: str, filter_dict: Dict[str, Any]):
+        """Elimina múltiples documentos de una colección"""
+        try:
+            collection = self.get_collection(collection_name)
+            result = await collection.delete_many(filter_dict)
+            return result
+        except Exception as e:
+            self.logger.error(f"Error deleting documents from {collection_name}: {e}")
+            raise

@@ -1,53 +1,392 @@
-# 📞 Speech AI Call Tracking System
+# 🤖 SpeechAI Backend - Sistema de Llamadas### ✅ **Integraciones**
+- 🤖 **Retell AI**: Cliente completo para llamadas automatizadas
+- 🗄️ **MongoDB**: Base de datos principal con Motor (async)
+- 📊 **Excel**: Carga masiva de contactos desde archivos Excel
+- 🌐 **FastAPI**: API REST moderna y rápida
+- 📈 **Google Sheets**: Integración para reportes (opcional)
 
-Sistema distribuido de procesamiento de llamadas automatizadas que replica workflows de n8n en Python, utilizando Retell AI para gestión completa del ciclo de vida de llamadas de cobranza.
+---
+
+## 🏗️ Arquitectura
+
+### 🎯 **Clean Architecture + DDD**
+
+```
+📂 app/
+├── 🏛️ domain/              # Entidades y reglas de negocio
+│   ├── models.py           # JobModel, BatchModel, ContactInfo
+│   ├── enums.py            # Estados y tipos del sistema
+│   └── use_cases/          # Casos de uso específicos
+├── 🚀 services/            # Lógica de aplicación
+│   ├── batch_service.py    # Gestión de lotes
+│   ├── job_service.py      # Gestión de trabajos
+│   ├── call_service.py     # Orquestación de llamadas
+│   └── worker_service.py   # Coordinación de workers
+├── 🏗️ infrastructure/      # Capa de persistencia
+│   ├── database_manager.py # MongoDB async
+│   └── retell_client.py    # Cliente Retell AI
+├── 🌐 api.py              # Controllers REST
+└── ⚙️ config/              # Configuración centralizada
+    └── settings.py         # Settings del sistema
+```
+
+### 🔄 **Flujo de Procesamiento**
+
+```
+Excel Upload → Batch Creation → Job Generation → Worker Pool → 
+Retell AI Call → Status Polling → Result Storage → Retry Logic
+```
+
+### 🎛️ **Estados del Sistema**
+
+| Estado | Descripción | Acción |
+|--------|-------------|--------|
+| `pending` | Listo para procesar | Worker disponible lo toma |
+| `in_progress` | Worker procesando | Esperando resultado |
+| `done` | Completado exitosamente | Fin del flujo |
+| `failed` | Falló definitivamente | No más reintentos |
+| `suspended` | Pausado (sin créditos) | Esperar reactivación |
 
 ## 📁 Estructura del Proyecto
 
 ```
 speechAi_backend/
-├── app/                     # 🚀 Código de producción
-│   ├── api.py              # Endpoints principales
-│   ├── run_api.py          # Servidor FastAPI
-│   ├── call_worker.py      # Worker de llamadas
-│   ├── config/             # Configuración
-│   ├── domain/             # Modelos y enums
-│   ├── infrastructure/     # DB y servicios externos
-│   ├── services/           # Lógica de negocio
-│   ├── utils/              # Utilidades generales
-│   ├── tests/              # 🧪 Tests aislados
-│   └── scripts/            # 🛠️ Scripts de desarrollo
-├── docs/                   # 📚 Documentación
-│   └── workflows/          # Workflows de n8n (JSON)
-├── TESTING_GUIDE.md        # Guía de tests y scripts
-└── STRUCTURE.md            # Documentación de estructura
+├── 📱 app/                          # Aplicación principal
+│   ├── 🏛️ domain/                   # Capa de Dominio
+│   │   ├── models.py                # Entidades de negocio
+│   │   ├── enums.py                 # Estados y tipos
+│   │   ├── use_case_registry.py     # Registro de casos de uso
+│   │   └── use_cases/              # Procesadores específicos
+│   │
+│   ├── 🚀 services/                 # Lógica de Aplicación
+│   │   ├── account_service.py       # Gestión de cuentas
+│   │   ├── batch_service.py         # Gestión de lotes
+│   │   ├── job_service.py          # Gestión de trabajos
+│   │   ├── call_service.py         # Orquestación de llamadas
+│   │   └── worker_service.py       # Coordinación de workers
+│   │
+│   ├── 🏗️ infrastructure/           # Capa de Infraestructura
+│   │   ├── database_manager.py      # MongoDB async
+│   │   └── retell_client.py        # Cliente Retell AI
+│   │
+│   ├── 🛠️ utils/                    # Utilidades
+│   │   ├── excel_processor.py       # Procesamiento Excel
+│   │   ├── jobs_report_generator.py # Generación de reportes
+│   │   └── timezone_utils.py       # Manejo de zonas horarias
+│   │
+│   ├── 📜 scripts/                  # Scripts de desarrollo
+│   │   ├── create_indexes.py        # Índices MongoDB
+│   │   ├── reset_jobs.py           # Reinicio de trabajos
+│   │   └── generate_reports.py     # Reportes rápidos
+│   │
+│   ├── ⚙️ config/                   # Configuración
+│   │   └── settings.py             # Settings centralizados
+│   │
+│   ├── 🌐 api.py                   # Endpoints REST
+│   ├── 🔧 call_worker.py           # Worker de procesamiento
+│   ├── 🚀 run_api.py              # Servidor FastAPI
+│   └── 📋 requirements.txt         # Dependencias
+│
+├── 📚 docs/                         # Documentación
+│   ├── guides/                     # Guías específicas
+│   ├── workflows/                  # Workflows n8n
+│   ├── CONFIGURACIONES_Y_CONTROL_SISTEMA.md
+│   ├── STRUCTURE.md               # Arquitectura detallada
+│   └── PROJECT_ANALYSIS_2025.md   # Análisis del proyecto
+│
+├── 📊 reportes/                    # Reportes generados
+├── 🔧 .env.example                # Variables de entorno
+└── 📖 README.md                   # Este archivo
 ```
 
-Ver [TESTING_GUIDE.md](TESTING_GUIDE.md) para instrucciones detalladas de testing.
+## ⚡ Instalación y Configuración
 
-## 🏗️ Arquitectura General
+### 🔧 **Prerrequisitos**
 
-Este sistema está diseñado para:
+- 🐍 **Python 3.11+**
+- 🗄️ **MongoDB 6.0+**
+- 🔑 **Cuenta Retell AI** con API key
+- 📞 **Número de teléfono** configurado en Retell
 
-1. **Procesar jobs de llamadas de cobranza** desde MongoDB
-2. **Ejecutar llamadas automáticas** usando Retell AI
-3. **Hacer seguimiento completo** hasta que cada llamada termine
-4. **Guardar resultados detallados** para análisis y reportes
+### 📥 **Instalación**
+
+```bash
+# 1. Clonar repositorio
+git clone https://github.com/mariandamblena/speechAi.git
+cd speechAi_backend
+
+# 2. Crear entorno virtual
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# o
+.venv\Scripts\activate     # Windows
+
+# 3. Instalar dependencias
+pip install -r app/requirements.txt
+
+# 4. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus credenciales
+```
+
+### ⚙️ **Configuración Básica (.env)**
+
+```bash
+# 🗄️ MongoDB
+MONGO_URI=mongodb://localhost:27017
+MONGO_DB=speechai_db
+
+# 🤖 Retell AI
+RETELL_API_KEY=your_retell_api_key_here
+RETELL_AGENT_ID=your_agent_id_here
+RETELL_FROM_NUMBER=+1234567890
+
+# 👷 Workers
+WORKER_COUNT=6
+MAX_ATTEMPTS=3
+RETRY_DELAY_MINUTES=30
+
+# 📊 Logs
+LOG_LEVEL=INFO
+```
+
+### 🚀 **Inicio Rápido**
+
+```bash
+# 1. Inicializar base de datos
+python app/scripts/create_indexes.py
+
+# 2. Iniciar API
+python app/run_api.py
+
+# 3. Iniciar workers (nueva terminal)
+python app/call_worker.py
+
+# 4. Verificar estado
+curl http://localhost:8000/health
+```
+
+## 💻 Uso del Sistema
+
+### 📊 **Endpoints API Principales**
+
+```bash
+# 🏥 Health check
+GET /health
+
+# 📊 Carga de Excel
+POST /api/upload/excel
+Content-Type: multipart/form-data
+Body: file=archivo.xlsx
+
+# 🎯 Gestión de Batches
+GET    /api/batches              # Listar batches
+POST   /api/batches              # Crear batch
+GET    /api/batches/{id}         # Ver batch específico
+POST   /api/batches/{id}/pause   # Pausar batch
+POST   /api/batches/{id}/resume  # Reanudar batch
+
+# 📋 Gestión de Jobs
+GET    /api/jobs                 # Listar jobs
+GET    /api/jobs/{id}            # Ver job específico
+POST   /api/jobs/{id}/retry      # Reintentar job
+
+# 📈 Reportes
+GET    /api/reports/jobs         # Reporte general
+GET    /api/reports/excel        # Exportar a Excel
+```
+
+### 📤 **Carga de Datos desde Excel**
+
+El sistema soporta 3 formatos de Excel diferentes:
+
+#### **1. Formato Debt Collection**
+```excel
+RUT       | NOMBRE    | TELEFONO    | MONTO  | FECHA_VENC
+12345678  | Juan P.   | +56911111   | 50000  | 2025-12-31
+```
+
+#### **2. Formato Marketing**
+```excel
+nombre    | telefono   | email          | edad | ciudad
+María G.  | +56922222  | maria@test.cl  | 35   | Santiago
+```
+
+#### **3. Formato Genérico**
+```excel
+name      | phone      | var1 | var2
+Carlos R. | +56933333  | A    | B
+```
+
+### 🔧 **Comandos de Administración**
+
+```bash
+# 📊 Ver estado del sistema
+python app/scripts/generate_reports.py --format terminal
+
+# 🔄 Reiniciar jobs fallidos
+python app/scripts/reset_jobs.py --status failed --max-age-hours 24
+
+# 📈 Generar reporte Excel
+python app/scripts/generate_reports.py --format excel
+
+# 🧹 Limpiar jobs antiguos
+python app/scripts/reset_jobs.py --cleanup --older-than-days 30
+```
+
+## 📊 Monitoreo y Reportes
+
+### 📈 **Sistema de Reportes Integrado**
+
+```bash
+# Reporte en terminal (tiempo real)
+python app/scripts/generate_reports.py --format terminal
+
+# Reporte en Excel (análisis detallado)
+python app/scripts/generate_reports.py --format excel
+
+# Reporte en Markdown (documentación)
+python app/scripts/generate_reports.py --format markdown
+```
+
+### 📋 **Métricas Disponibles**
+
+- **Estados de Jobs**: pending, in_progress, completed, failed
+- **Análisis Temporal**: Distribución por hora/día
+- **Tasas de Éxito**: Por batch, por tipo de llamada
+- **Costos**: Desglose detallado por llamada
+- **Teléfonos**: Uso de números principales vs alternativos
+- **Reintentos**: Distribución de intentos por job
+
+## 🔍 Troubleshooting
+
+### ❌ **Problemas Comunes**
+
+| Problema | Síntoma | Solución |
+|----------|---------|----------|
+| Jobs no se procesan | `pending` jobs no avanzan | Verificar workers: `ps aux \| grep call_worker` |
+| Llamadas fallan | Alta tasa de `failed` | Revisar configuración Retell AI |
+| Variables no llegan | Prompts sin datos | Verificar `call_worker.py` líneas 644-658 |
+| Alto costo | Facturas elevadas | Revisar `CALL_MAX_DURATION_MINUTES` |
+| Jobs colgados | `in_progress` > 5 min | Liberar: `python app/scripts/reset_jobs.py` |
+
+### 🔧 **Comandos de Diagnóstico**
+
+```bash
+# Verificar conexión MongoDB
+python -c "from pymongo import MongoClient; print(MongoClient().admin.command('ping'))"
+
+# Verificar API Retell
+curl -H "Authorization: Bearer $RETELL_API_KEY" https://api.retellai.com/agent
+
+# Ver logs en tiempo real
+tail -f logs/speechai.log
+
+# Estado de workers
+ps aux | grep -E "(call_worker|run_api)"
+```
+
+## 📚 Documentación
+
+### 📖 **Documentos Clave**
+
+- 📋 **[CONFIGURACIONES_Y_CONTROL_SISTEMA.md](docs/CONFIGURACIONES_Y_CONTROL_SISTEMA.md)**: Configuración completa y control del sistema
+- 🏗️ **[STRUCTURE.md](docs/STRUCTURE.md)**: Arquitectura detallada del proyecto
+- 🔧 **[SOLUCION_VARIABLES_RETELL.md](SOLUCION_VARIABLES_RETELL.md)**: Fix del bug de variables
+- 📊 **[PROJECT_ANALYSIS_2025.md](docs/PROJECT_ANALYSIS_2025.md)**: Análisis completo del proyecto
+
+### 🎯 **Guías Específicas**
+
+- 💰 **[COST_GUIDE.md](docs/guides/COST_GUIDE.md)**: Guía de control de costos
+- 🧪 **[TESTING_GUIDE.md](docs/guides/TESTING_GUIDE.md)**: Guía completa de testing
+- 🔗 **[WEBHOOK_README.md](docs/guides/WEBHOOK_README.md)**: Configuración de webhooks
+
+### 🌐 **API Documentation**
+
+Una vez iniciado el servidor, la documentación interactiva está disponible en:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+## 🤝 Contribución
+
+### 📝 **Workflow de Desarrollo**
+
+1. **Fork** del repositorio
+2. **Crear branch**: `git checkout -b feature/nueva-funcionalidad`
+3. **Commits** descriptivos: `git commit -m "feat: add new feature"`
+4. **Push**: `git push origin feature/nueva-funcionalidad`
+5. **Pull Request** con descripción detallada
+
+### 📏 **Estándares de Código**
+
+- **Arquitectura**: Clean Architecture + DDD
+- **Formato**: Black + isort
+- **Linting**: flake8 + mypy
+- **Testing**: pytest + coverage >= 80%
+- **Documentación**: Docstrings + type hints
+
+## 👥 Equipo
+
+- **Desarrollo**: [mariandamblena](https://github.com/mariandamblena)
+- **Arquitectura**: Clean Architecture + Domain Driven Design
+- **Stack**: Python + FastAPI + MongoDB + Retell AI
+
+## 🆘 Soporte
+
+¿Necesitas ayuda? 
+
+1. 📖 Revisa la [documentación completa](docs/)
+2. 🔍 Busca en [issues existentes](https://github.com/mariandamblena/speechAi/issues)
+3. 🆕 Crea un [nuevo issue](https://github.com/mariandamblena/speechAi/issues/new)
+4. 📧 Contacta al equipo de desarrollo
+
+---
+
+**⭐ Si este proyecto te resulta útil, ¡no olvides darle una estrella!**tizadas
+
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com)
+[![MongoDB](https://img.shields.io/badge/MongoDB-6.0+-darkgreen.svg)](https://mongodb.com)
+[![Retell AI](https://img.shields.io/badge/Retell%20AI-Integration-purple.svg)](https://retellai.com)
+
+Sistema distribuido de procesamiento de llamadas automatizadas que replica workflows de n8n en Python, utilizando **Retell AI** para gestión completa del ciclo de vida de llamadas de cobranza y marketing.
+
+## � Tabla de Contenidos
+
+- [🚀 Características Principales](#-características-principales)
+- [🏗️ Arquitectura](#️-arquitectura)
+- [📁 Estructura del Proyecto](#-estructura-del-proyecto)
+- [⚡ Instalación y Configuración](#-instalación-y-configuración)
+- [🔧 Configuración Avanzada](#-configuración-avanzada)
+- [💻 Uso del Sistema](#-uso-del-sistema)
+- [📊 Monitoreo y Reportes](#-monitoreo-y-reportes)
+- [🛠️ Desarrollo](#️-desarrollo)
+- [� Troubleshooting](#-troubleshooting)
+- [📚 Documentación](#-documentación)
+
+---
 
 ## 🚀 Características Principales
 
-### ✅ Funcionalidades Core
-- **Call ID Tracking** - Guarda call_id inmediatamente tras crear la llamada
-- **Polling System** - Consulta estado de llamada hasta finalización
-- **Result Storage** - Persiste transcripción completa, análisis y costos
-- **Variable Mapping** - Envía todas las variables dinámicas al prompt de Retell
-- **Cost Control** - Registra costos detallados por llamada
-- **Retry Logic** - Reintentos inteligentes con delays por persona
-- **Phone Management** - Maneja múltiples teléfonos por contacto
-- **Concurrency** - Múltiples workers distribuidos
-- **Error Handling** - Manejo robusto de fallos y recuperación
+### ✅ **Core Features**
+- 🎯 **Llamadas Automáticas**: Integración completa con Retell AI
+- 📊 **Seguimiento en Tiempo Real**: Polling system para estado de llamadas
+- 🔄 **Sistema de Reintentos**: Lógica inteligente con delays configurables
+- 📞 **Gestión de Teléfonos**: Rotación automática entre números disponibles
+- 💰 **Control de Costos**: Registro detallado de costos por llamada
+- 📈 **Reportes Avanzados**: Análisis completo en Excel/markdown/terminal
+- 🏭 **Procesamiento Masivo**: Workers distribuidos para alta concurrencia
+- 🛡️ **Manejo de Errores**: Recuperación automática y logging detallado
 
-### ✅ Integraciones
+### ✅ **Casos de Uso Soportados**
+- 💳 **Cobranza de Deudas**: Recordatorios automáticos con variables dinámicas
+- 📢 **Marketing**: Campañas promocionales personalizadas  
+- 📋 **Encuestas**: Recolección automatizada de datos
+- ⏰ **Recordatorios**: Notificaciones de citas y pagos
+- 📧 **Notificaciones**: Alertas importantes automatizadas
+
+### ✅ **Integraciones**
 - **MongoDB** - Base de datos principal para jobs y resultados
 - **Retell AI** - API para llamadas de voz automatizadas
 - **Python 3.12+** - Runtime principal

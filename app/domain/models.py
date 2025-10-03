@@ -34,28 +34,77 @@ class ContactInfo:
 
 
 @dataclass
-class CallPayload:
-    """Datos específicos del contexto de la llamada de cobranza"""
-    debt_amount: float
-    due_date: str
+class BasePayload:
+    """Clase base para todos los payloads de llamadas"""
     company_name: str = ""
-    reference_number: str = ""
     additional_info: Dict[str, Any] = field(default_factory=dict)
     
     def to_retell_context(self) -> Dict[str, str]:
         """Convierte el payload a contexto para Retell (todo strings)"""
         context = {
-            "monto_total": str(self.debt_amount),
-            "fecha_limite": self.due_date,
             "empresa": self.company_name,
-            "referencia": self.reference_number,
         }
         
-        # Agregar info adicional
+        # Agregar información adicional
         for key, value in self.additional_info.items():
             context[key] = str(value)
-            
+        
         return context
+
+
+@dataclass
+class CallPayload(BasePayload):
+    """Datos específicos del contexto de la llamada de cobranza"""
+    debt_amount: float = 0.0
+    due_date: str = ""
+    reference_number: str = ""
+    
+    def to_retell_context(self) -> Dict[str, str]:
+        """Convierte el payload a contexto para Retell (todo strings con fechas legibles)"""
+        context = super().to_retell_context()
+        
+        # Formatear fecha legible para Retell AI
+        fecha_limite_legible = self._format_date_for_speech(self.due_date)
+        
+        context.update({
+            "monto_total": str(self.debt_amount),
+            "fecha_limite": fecha_limite_legible,
+            "referencia": self.reference_number,
+        })
+        
+        return context
+    
+    def _format_date_for_speech(self, iso_date: str) -> str:
+        """Convierte fecha ISO (2025-09-28) a formato legible para voz (28 de septiembre de 2025)"""
+        try:
+            from utils.timezone_utils import format_date_for_retell
+            return format_date_for_retell(iso_date)
+        except ImportError:
+            # Fallback si no se puede importar la utilidad
+            if not iso_date:
+                return ""
+            
+            try:
+                # Parsear fecha ISO
+                if 'T' in iso_date:  # Si tiene hora, extraer solo fecha
+                    iso_date = iso_date.split('T')[0]
+                
+                from datetime import datetime
+                date_obj = datetime.fromisoformat(iso_date)
+                
+                # Mapeo de meses en español
+                meses = [
+                    '', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+                ]
+                
+                dia = date_obj.day
+                mes = meses[date_obj.month]
+                año = date_obj.year
+                
+                return f"{dia} de {mes} de {año}"
+            except (ValueError, IndexError):
+                return iso_date  # Fallback: retornar fecha original
 
 
 @dataclass
@@ -108,7 +157,7 @@ class JobModel:
         if not self.job_id:
             # Usar UUID para garantizar unicidad
             unique_id = str(uuid.uuid4())[:8]  # Primeros 8 caracteres del UUID
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             self.job_id = f"job_{self.account_id[:8]}_{timestamp}_{unique_id}"
         return self.job_id
     
@@ -154,6 +203,15 @@ class JobModel:
                 "next_phone_index": self.contact.next_phone_index,
             }
             
+            # Extraer campos de contacto al nivel raíz para compatibilidad
+            data["nombre"] = self.contact.name
+            data["rut"] = self.contact.dni
+            data["to_number"] = self.contact.current_phone
+            
+            # Formatear RUT si es válido
+            if self.contact.dni:
+                data["rut_fmt"] = self.contact.dni
+            
         if self.payload:
             data["payload"] = {
                 "debt_amount": self.payload.debt_amount,
@@ -162,6 +220,23 @@ class JobModel:
                 "reference_number": self.payload.reference_number,
                 "additional_info": self.payload.additional_info,
             }
+            
+            # Extraer campos importantes al nivel raíz para compatibilidad con call_worker
+            if hasattr(self.payload, 'debt_amount'):
+                data["monto_total"] = self.payload.debt_amount
+                data["deuda"] = self.payload.debt_amount
+            
+            if hasattr(self.payload, 'due_date'):
+                data["fecha_limite"] = self.payload.due_date
+            
+            if hasattr(self.payload, 'company_name'):
+                data["origen_empresa"] = self.payload.company_name
+            
+            # Extraer campos del additional_info al nivel raíz
+            if self.payload.additional_info:
+                for key, value in self.payload.additional_info.items():
+                    if key in ['cantidad_cupones', 'fecha_maxima', 'rut', 'batch_origen']:
+                        data[key] = value
         
         # Campos opcionales
         optional_fields = [

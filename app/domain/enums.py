@@ -10,6 +10,7 @@ class JobStatus(Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    DONE = "done"  # Agregado para compatibilidad con call_worker
     FAILED = "failed"
     SUSPENDED = "suspended"  # Nuevo: Para jobs sin créditos
 
@@ -47,3 +48,13 @@ class PlanType(Enum):
     MINUTES_BASED = "minutes_based"    # Por minutos comprados
     CREDIT_BASED = "credit_based"      # Por créditos en dinero
     UNLIMITED = "unlimited"            # Sin límites
+
+
+class UseCaseType(Enum):
+    """Tipos de casos de uso soportados"""
+    DEBT_COLLECTION = "debt_collection"
+    MARKETING = "marketing"
+    SURVEY = "survey"
+    REMINDER = "reminder"
+    NOTIFICATION = "notification"
+

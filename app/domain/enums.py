@@ -50,6 +50,19 @@ class PlanType(Enum):
     UNLIMITED = "unlimited"            # Sin límites
 
 
+class TransactionType(Enum):
+    """Tipos de transacciones financieras"""
+    TOPUP_CREDITS = "topup_credits"         # Recarga de créditos
+    TOPUP_MINUTES = "topup_minutes"         # Recarga de minutos
+    CALL_USAGE = "call_usage"               # Uso en llamadas
+    CALL_SETUP = "call_setup"               # Costo setup de llamada
+    BONUS = "bonus"                         # Bonos promocionales
+    REFUND = "refund"                       # Reembolsos
+    PENALTY = "penalty"                     # Penalizaciones
+    PLAN_UPGRADE = "plan_upgrade"           # Upgrade de plan
+    PLAN_RENEWAL = "plan_renewal"           # Renovación de plan
+
+
 class UseCaseType(Enum):
     """Tipos de casos de uso soportados"""
     DEBT_COLLECTION = "debt_collection"

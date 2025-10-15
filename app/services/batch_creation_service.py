@@ -30,7 +30,9 @@ class BatchCreationService:
         account_id: str, 
         batch_name: str = None,
         batch_description: str = None,
-        allow_duplicates: bool = False
+        allow_duplicates: bool = False,
+        dias_fecha_limite: Optional[int] = None,
+        dias_fecha_maxima: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Crea un batch completo desde archivo Excel con anti-duplicación
@@ -41,6 +43,8 @@ class BatchCreationService:
             batch_name: Nombre opcional del batch
             batch_description: Descripción opcional
             allow_duplicates: Si permite duplicados (default: False)
+            dias_fecha_limite: Días a sumar a fecha actual para fecha_limite (ej: 30)
+            dias_fecha_maxima: Días a sumar a fecha actual para fecha_maxima (ej: 45)
         
         Returns:
             Diccionario con resultado del procesamiento
@@ -124,7 +128,13 @@ class BatchCreationService:
             
             # 10. Crear jobs de llamadas
             logger.info(f"Creando jobs de llamadas para {len(valid_debtors)} deudores")
-            jobs_created = await self._create_jobs_from_debtors(valid_debtors, account_id, batch_id)
+            jobs_created = await self._create_jobs_from_debtors(
+                valid_debtors, 
+                account_id, 
+                batch_id,
+                dias_fecha_limite=dias_fecha_limite,
+                dias_fecha_maxima=dias_fecha_maxima
+            )
             logger.info(f"Jobs de llamadas creados: {len(jobs_created)}")
             
             if not jobs_created:
@@ -275,9 +285,20 @@ class BatchCreationService:
         self, 
         debtors_data: List[Dict], 
         account_id: str, 
-        batch_id: str
+        batch_id: str,
+        dias_fecha_limite: Optional[int] = None,
+        dias_fecha_maxima: Optional[int] = None
     ) -> List[str]:
-        """Crea jobs de llamadas desde datos de deudores"""
+        """
+        Crea jobs de llamadas desde datos de deudores
+        
+        Args:
+            debtors_data: Lista de deudores procesados
+            account_id: ID de la cuenta
+            batch_id: ID del batch
+            dias_fecha_limite: Días a sumar a fecha actual para fecha_limite
+            dias_fecha_maxima: Días a sumar a fecha actual para fecha_maxima
+        """
         logger.info(f"_create_jobs_from_debtors iniciado: {len(debtors_data)} deudores, account={account_id}, batch={batch_id}")
         
         if not debtors_data:
@@ -286,6 +307,19 @@ class BatchCreationService:
         
         jobs_data = []
         now = datetime.utcnow()
+        
+        # Calcular fechas dinámicas si se especificaron los días
+        from datetime import timedelta
+        fecha_limite_calculada = None
+        fecha_maxima_calculada = None
+        
+        if dias_fecha_limite is not None:
+            fecha_limite_calculada = (now + timedelta(days=dias_fecha_limite)).strftime('%Y-%m-%d')
+            logger.info(f"Fecha límite calculada dinámicamente: HOY + {dias_fecha_limite} días = {fecha_limite_calculada}")
+        
+        if dias_fecha_maxima is not None:
+            fecha_maxima_calculada = (now + timedelta(days=dias_fecha_maxima)).strftime('%Y-%m-%d')
+            logger.info(f"Fecha máxima calculada dinámicamente: HOY + {dias_fecha_maxima} días = {fecha_maxima_calculada}")
         
         # Obtener tiempo local Chile para contexto
         import pytz
@@ -307,16 +341,27 @@ class BatchCreationService:
                 phones=phones
             )
             
+            # Determinar qué fecha_limite usar: calculada dinámicamente o la del Excel
+            fecha_limite_final = fecha_limite_calculada if fecha_limite_calculada else debtor.get('fecha_limite', '')
+            
+            # Preparar additional_info con fecha_maxima
+            additional_info = {
+                'cantidad_cupones': debtor.get('cantidad_cupones', 0),
+                'current_time_America_Santiago': now_chile
+            }
+            
+            # Agregar fecha_maxima (calculada o del Excel)
+            if fecha_maxima_calculada:
+                additional_info['fecha_maxima'] = fecha_maxima_calculada
+            elif debtor.get('fecha_maxima'):
+                additional_info['fecha_maxima'] = debtor.get('fecha_maxima', '')
+            
             # Crear CallPayload con info de deuda
             payload = CallPayload(
                 debt_amount=debtor['monto_total'],
-                due_date=debtor.get('fecha_limite', ''),
+                due_date=fecha_limite_final,
                 company_name=debtor.get('origen_empresa', ''),
-                additional_info={
-                    'cantidad_cupones': debtor.get('cantidad_cupones', 0),
-                    'fecha_maxima': debtor.get('fecha_maxima', ''),
-                    'current_time_America_Santiago': now_chile
-                }
+                additional_info=additional_info
             )
             
             # Crear JobModel

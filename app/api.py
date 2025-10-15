@@ -502,6 +502,8 @@ async def create_batch_from_excel(
     batch_description: Optional[str] = Query(None, description="Descripción del batch"),
     allow_duplicates: bool = Query(False, description="Permitir duplicados"),
     processing_type: str = Query("basic", description="Tipo de procesamiento: 'basic' o 'acquisition'"),
+    dias_fecha_limite: Optional[int] = Query(None, description="Días a agregar a fecha actual para calcular fecha_limite (ej: 30)"),
+    dias_fecha_maxima: Optional[int] = Query(None, description="Días a agregar a fecha actual para calcular fecha_maxima (ej: 45)"),
     basic_service: BatchCreationService = Depends(get_batch_creation_service),
     chile_service: ChileBatchService = Depends(get_chile_batch_service)
 ):
@@ -512,6 +514,11 @@ async def create_batch_from_excel(
     - 'basic': Procesamiento simple y directo (por defecto)
     - 'acquisition': Lógica avanzada con agrupación por RUT, normalización chilena,
                      cálculo de fechas límite según workflow N8N de adquisición
+    
+    Cálculo dinámico de fechas (opcional):
+    - dias_fecha_limite: Calcula fecha_limite = HOY + N días (ej: 30 días)
+    - dias_fecha_maxima: Calcula fecha_maxima = HOY + N días (ej: 45 días)
+    - Si no se especifican, se usan las fechas del Excel
     """
     try:
         # Verificar tipo de archivo
@@ -536,7 +543,9 @@ async def create_batch_from_excel(
                 account_id=account_id,
                 batch_name=batch_name or f"Acquisition Batch {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
                 batch_description=batch_description,
-                allow_duplicates=allow_duplicates
+                allow_duplicates=allow_duplicates,
+                dias_fecha_limite=dias_fecha_limite,
+                dias_fecha_maxima=dias_fecha_maxima
             )
         else:
             # Usar lógica básica (por defecto)
@@ -545,7 +554,9 @@ async def create_batch_from_excel(
                 account_id=account_id,
                 batch_name=batch_name or f"Basic Batch {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
                 batch_description=batch_description,
-                allow_duplicates=allow_duplicates
+                allow_duplicates=allow_duplicates,
+                dias_fecha_limite=dias_fecha_limite,
+                dias_fecha_maxima=dias_fecha_maxima
             )
         
         if not result['success']:

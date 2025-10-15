@@ -615,7 +615,9 @@ class ChileBatchService:
         account_id: str,
         batch_name: str = None,
         batch_description: str = None,
-        allow_duplicates: bool = False
+        allow_duplicates: bool = False,
+        dias_fecha_limite: Optional[int] = None,
+        dias_fecha_maxima: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Crea batch usando lógica de adquisición avanzada
@@ -626,6 +628,8 @@ class ChileBatchService:
             batch_name: Nombre del batch
             batch_description: Descripción del batch
             allow_duplicates: Permitir duplicados
+            dias_fecha_limite: Días a sumar a fecha actual para fecha_limite
+            dias_fecha_maxima: Días a sumar a fecha actual para fecha_maxima
             
         Returns:
             Resultado del procesamiento
@@ -708,12 +712,28 @@ class ChileBatchService:
             
             # Usar el batch_id único para los deudores y jobs
             
+            # Calcular fechas dinámicas si se especificaron los días
+            fecha_limite_calculada = None
+            fecha_maxima_calculada = None
+            
+            if dias_fecha_limite is not None:
+                fecha_limite_calculada = (datetime.utcnow() + timedelta(days=dias_fecha_limite)).strftime('%Y-%m-%d')
+                logger.info(f"Fecha límite calculada dinámicamente: HOY + {dias_fecha_limite} días = {fecha_limite_calculada}")
+            
+            if dias_fecha_maxima is not None:
+                fecha_maxima_calculada = (datetime.utcnow() + timedelta(days=dias_fecha_maxima)).strftime('%Y-%m-%d')
+                logger.info(f"Fecha máxima calculada dinámicamente: HOY + {dias_fecha_maxima} días = {fecha_maxima_calculada}")
+            
             # 5. Crear jobs y debtors
             jobs_created = 0
             debtors_created = 0
             
             for debtor_data in valid_debtors:
                 try:
+                    # Determinar qué fechas usar: calculadas dinámicamente o las del Excel
+                    fecha_limite_final = fecha_limite_calculada if fecha_limite_calculada else debtor_data.get('fecha_limite')
+                    fecha_maxima_final = fecha_maxima_calculada if fecha_maxima_calculada else debtor_data.get('fecha_maxima')
+                    
                     # Crear debtor usando el modelo DebtorModel diseñado para esto
                     debtor = DebtorModel(
                         batch_id=batch.batch_id,  # Usar batch_id único
@@ -724,8 +744,8 @@ class ChileBatchService:
                         phones=debtor_data['phones'],
                         cantidad_cupones=debtor_data['cantidad_cupones'],
                         monto_total=debtor_data['monto_total'],
-                        fecha_limite=debtor_data.get('fecha_limite'),
-                        fecha_maxima=debtor_data.get('fecha_maxima'),
+                        fecha_limite=fecha_limite_final,
+                        fecha_maxima=fecha_maxima_final,
                         to_number=debtor_data['phones'].get('best_e164'),
                         key=debtor_data.get('key', f"{batch.batch_id}::{debtor_data['rut']}"),  # Usar batch_id único
                         created_at=datetime.utcnow()
@@ -746,14 +766,14 @@ class ChileBatchService:
                     
                     call_payload = CallPayload(
                         debt_amount=debtor_data['monto_total'],
-                        due_date=debtor_data.get('fecha_limite', ''),
+                        due_date=fecha_limite_final or '',
                         company_name=debtor_data.get('origen_empresa', ''),
                         reference_number=debtor_data['rut'],
                         additional_info={
                             "rut": debtor_data['rut'],
                             "nombre": debtor_data['nombre'],
                             "cantidad_cupones": debtor_data['cantidad_cupones'],
-                            "fecha_maxima": debtor_data.get('fecha_maxima', ''),
+                            "fecha_maxima": fecha_maxima_final or '',
                             "current_time_america_santiago": debtor_data.get('current_time_america_santiago', '')
                         }
                     )

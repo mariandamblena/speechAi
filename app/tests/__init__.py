@@ -1,1 +1,0 @@
-# Tests para el proyecto Speech AI

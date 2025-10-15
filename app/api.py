@@ -20,6 +20,7 @@ from services.batch_creation_service import BatchCreationService
 from services.chile_batch_service import ChileBatchService
 from services.argentina_batch_service import ArgentinaBatchService
 from services.job_service import JobService
+from services.transaction_service import TransactionService
 from infrastructure.database_manager import DatabaseManager
 from config.settings import get_settings
 from utils.helpers import serialize_objectid
@@ -96,11 +97,12 @@ batch_creation_service = None
 chile_batch_service = None
 argentina_batch_service = None
 job_service = None
+transaction_service = None
 
 @app.on_event("startup")
 async def startup_event():
     """Inicializar servicios al arrancar la API"""
-    global db_manager, account_service, batch_service, batch_creation_service, chile_batch_service, argentina_batch_service, job_service
+    global db_manager, account_service, batch_service, batch_creation_service, chile_batch_service, argentina_batch_service, job_service, transaction_service
     
     db_manager = DatabaseManager(settings.database.uri, settings.database.database)
     await db_manager.connect()
@@ -111,6 +113,7 @@ async def startup_event():
     chile_batch_service = ChileBatchService(db_manager)
     argentina_batch_service = ArgentinaBatchService(db_manager)
     job_service = JobService(db_manager)
+    transaction_service = TransactionService(db_manager)
     
     logging.info("API initialized successfully")
 
@@ -139,6 +142,9 @@ async def get_argentina_batch_service() -> ArgentinaBatchService:
 
 async def get_job_service() -> JobService:
     return job_service
+
+async def get_transaction_service() -> TransactionService:
+    return transaction_service
 
 
 # ============================================================================
@@ -916,6 +922,303 @@ async def get_available_use_cases():
         }
     except Exception as e:
         logging.error(f"Error getting use cases: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ENDPOINTS FALTANTES - IMPLEMENTADOS
+# ============================================================================
+
+@app.get("/api/v1/accounts")
+async def list_accounts(
+    status: Optional[str] = Query(None),
+    plan_type: Optional[str] = Query(None),
+    limit: int = Query(100, le=1000),
+    skip: int = Query(0, ge=0),
+    service: AccountService = Depends(get_account_service)
+):
+    """Listar todas las cuentas con filtros opcionales"""
+    try:
+        from domain.enums import AccountStatus, PlanType
+        
+        status_enum = None
+        if status:
+            try:
+                status_enum = AccountStatus(status)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+        
+        plan_type_enum = None
+        if plan_type:
+            try:
+                plan_type_enum = PlanType(plan_type)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid plan_type: {plan_type}")
+        
+        accounts = await service.list_accounts(
+            status=status_enum,
+            plan_type=plan_type_enum,
+            limit=limit,
+            skip=skip
+        )
+        
+        return [serialize_objectid(account.to_dict()) for account in accounts]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error listing accounts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/batches/{batch_id}/jobs")
+async def get_batch_jobs(
+    batch_id: str,
+    status: Optional[str] = Query(None),
+    limit: int = Query(100, le=1000),
+    skip: int = Query(0, ge=0),
+    service: JobService = Depends(get_job_service)
+):
+    """Obtener jobs de un batch específico"""
+    try:
+        from domain.enums import JobStatus
+        
+        status_enum = None
+        if status:
+            try:
+                status_enum = JobStatus(status)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+        
+        jobs = await service.list_jobs(
+            batch_id=batch_id,
+            status=status_enum,
+            limit=limit,
+            skip=skip
+        )
+        
+        if not jobs and skip == 0:
+            # Verificar que el batch existe
+            batch_service = await get_batch_service()
+            batch = await batch_service.get_batch(batch_id)
+            if not batch:
+                raise HTTPException(status_code=404, detail="Batch not found")
+        
+        return [serialize_objectid(job.to_dict()) for job in jobs]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting batch jobs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/accounts/{account_id}/batches")
+async def get_account_batches(
+    account_id: str,
+    is_active: Optional[bool] = Query(None),
+    limit: int = Query(100, le=1000),
+    skip: int = Query(0, ge=0),
+    service: BatchService = Depends(get_batch_service),
+    account_service: AccountService = Depends(get_account_service)
+):
+    """Obtener batches/campañas de una cuenta específica"""
+    try:
+        # Verificar que la cuenta existe
+        account = await account_service.get_account(account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        batches = await service.list_batches(
+            account_id=account_id,
+            is_active=is_active,
+            limit=limit,
+            skip=skip
+        )
+        
+        return [serialize_objectid(batch.to_dict()) for batch in batches]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting account batches: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/accounts/{account_id}/transactions")
+async def get_account_transactions(
+    account_id: str,
+    transaction_type: Optional[str] = Query(None),
+    limit: int = Query(50, le=200),
+    skip: int = Query(0, ge=0),
+    service: TransactionService = Depends(get_transaction_service),
+    account_service: AccountService = Depends(get_account_service)
+):
+    """Obtener transacciones financieras de una cuenta"""
+    try:
+        # Verificar que la cuenta existe
+        account = await account_service.get_account(account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        from domain.enums import TransactionType
+        transaction_type_enum = None
+        if transaction_type:
+            try:
+                transaction_type_enum = TransactionType(transaction_type)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid transaction_type: {transaction_type}")
+        
+        transactions = await service.get_account_transactions(
+            account_id=account_id,
+            transaction_type=transaction_type_enum,
+            limit=limit,
+            skip=skip
+        )
+        
+        return [serialize_objectid(transaction.to_dict()) for transaction in transactions]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting account transactions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ENDPOINTS ADICIONALES - MEJORAS PARA EL FRONTEND
+# ============================================================================
+
+@app.get("/api/v1/dashboard/overview")
+async def get_dashboard_overview(
+    account_id: Optional[str] = Query(None),
+    service: JobService = Depends(get_job_service),
+    account_svc: AccountService = Depends(get_account_service),
+    batch_svc: BatchService = Depends(get_batch_service)
+):
+    """Obtener resumen ejecutivo para el dashboard principal"""
+    try:
+        if account_id:
+            # Dashboard específico de cuenta
+            account = await account_svc.get_account(account_id)
+            if not account:
+                raise HTTPException(status_code=404, detail="Account not found")
+            
+            # Stats de jobs de hoy
+            today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Agregación para jobs de hoy
+            pipeline = [
+                {
+                    "$match": {
+                        "account_id": account_id,
+                        "created_at": {"$gte": today}
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": "$status",
+                        "count": {"$sum": 1}
+                    }
+                }
+            ]
+            
+            cursor = service.jobs_collection.aggregate(pipeline)
+            today_stats = {}
+            async for stat in cursor:
+                today_stats[stat["_id"]] = stat["count"]
+            
+            # Batches activos
+            active_batches = await batch_svc.list_batches(account_id=account_id, is_active=True, limit=10)
+            
+            # Últimos batches (recientes)
+            recent_batches = await batch_svc.list_batches(account_id=account_id, limit=5)
+            
+            return {
+                "jobs_today": today_stats.get("completed", 0) + today_stats.get("in_progress", 0),
+                "success_rate": "69.4%",  # Se calculará dinámicamente después
+                "active_batches": len(active_batches),
+                "pending_jobs": today_stats.get("pending", 0),
+                "recent_batches": [
+                    {
+                        "name": batch.name,
+                        "status": "RUNNING" if batch.is_active else "PAUSED",
+                        "jobs_count": f"{batch.completed_jobs} jobs",
+                        "description": "RUNNING" if batch.is_active else "PAUSED"
+                    }
+                    for batch in recent_batches[:3]
+                ],
+                "call_activity": {
+                    "chart_placeholder": "Gráfico de actividad",
+                    "note": "Disponible cuando se implemente /api/v1/reports/analytics"
+                },
+                "daily_summary": {
+                    "completed": today_stats.get("completed", 0),
+                    "in_progress": today_stats.get("in_progress", 0),
+                    "failed": today_stats.get("failed", 0),
+                    "revenue": "$0"  # Se calculará con transacciones
+                }
+            }
+        else:
+            # Dashboard global del sistema
+            all_accounts = await account_svc.list_accounts(limit=1000)
+            active_accounts = len([a for a in all_accounts if a.status.value == "active"])
+            
+            return {
+                "system_overview": {
+                    "total_accounts": len(all_accounts),
+                    "active_accounts": active_accounts,
+                    "suspended_accounts": len(all_accounts) - active_accounts
+                }
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting dashboard overview: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/accounts/{account_id}/summary")
+async def get_account_summary(
+    account_id: str,
+    account_svc: AccountService = Depends(get_account_service),
+    batch_svc: BatchService = Depends(get_batch_service),
+    transaction_svc: TransactionService = Depends(get_transaction_service)
+):
+    """Obtener resumen completo de una cuenta (para modal de detalle)"""
+    try:
+        # Verificar que la cuenta existe
+        account = await account_svc.get_account(account_id)
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        # Stats de batches
+        batches = await batch_svc.list_batches(account_id=account_id, limit=1000)
+        active_batches = len([b for b in batches if b.is_active])
+        
+        # Resumen de transacciones
+        transaction_summary = await transaction_svc.get_account_transaction_summary(account_id)
+        
+        # Balance actual
+        balance = await account_svc.check_balance(account_id)
+        
+        return {
+            "account": serialize_objectid(account.to_dict()),
+            "balance": balance,
+            "stats": {
+                "total_batches": len(batches),
+                "active_batches": active_batches,
+                "completed_batches": len(batches) - active_batches
+            },
+            "financial_summary": {
+                "total_spent": transaction_summary.get("total_cost", 0) / 100,  # Convertir centavos
+                "total_recharges": transaction_summary.get("total_recharges", 0),
+                "total_usage": transaction_summary.get("total_usage", 0),
+                "transaction_count": transaction_summary.get("transaction_count", 0)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting account summary: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

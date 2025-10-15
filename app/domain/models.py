@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any
 from bson import ObjectId
 import uuid
 
-from .enums import JobStatus, CallStatus, CallMode, AccountStatus, PlanType
+from .enums import JobStatus, CallStatus, CallMode, AccountStatus, PlanType, TransactionType
 
 
 @dataclass
@@ -713,3 +713,67 @@ class BatchModel:
             started_at=data.get("started_at"),
             completed_at=data.get("completed_at"),
         )
+
+
+@dataclass
+class TransactionModel:
+    """Modelo para transacciones financieras de la cuenta"""
+    _id: Optional[ObjectId] = None
+    transaction_id: Optional[str] = None
+    account_id: str = ""
+    type: TransactionType = TransactionType.TOPUP_CREDITS
+    amount: float = 0.0  # Cantidad: positiva para recargas, negativa para uso
+    cost: int = 0  # Costo en centavos (para evitar decimales)
+    description: str = ""
+    reference_id: Optional[str] = None  # ID de batch, job o plan relacionado
+    created_at: Optional[datetime] = None
+    
+    def __post_init__(self):
+        if not self.transaction_id:
+            self.transaction_id = f"txn_{str(uuid.uuid4())[:8]}"
+        if not self.created_at:
+            self.created_at = datetime.utcnow()
+    
+    def to_dict(self) -> Dict:
+        """Convierte a diccionario para MongoDB"""
+        return {
+            "_id": self._id,
+            "transaction_id": self.transaction_id,
+            "account_id": self.account_id,
+            "type": self.type.value,
+            "amount": self.amount,
+            "cost": self.cost,
+            "description": self.description,
+            "reference_id": self.reference_id,
+            "created_at": self.created_at
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict) -> "TransactionModel":
+        """Crea instancia desde diccionario de MongoDB"""
+        return cls(
+            _id=data.get("_id"),
+            transaction_id=data.get("transaction_id"),
+            account_id=data.get("account_id", ""),
+            type=TransactionType(data.get("type", TransactionType.TOPUP_CREDITS.value)),
+            amount=data.get("amount", 0.0),
+            cost=data.get("cost", 0),
+            description=data.get("description", ""),
+            reference_id=data.get("reference_id"),
+            created_at=data.get("created_at")
+        )
+    
+    @property
+    def cost_currency(self) -> float:
+        """Costo en moneda (dividir centavos por 100)"""
+        return self.cost / 100.0
+    
+    @property
+    def is_positive(self) -> bool:
+        """Es una transacción positiva (recarga)"""
+        return self.amount > 0
+    
+    @property
+    def is_negative(self) -> bool:
+        """Es una transacción negativa (uso/gasto)"""
+        return self.amount < 0

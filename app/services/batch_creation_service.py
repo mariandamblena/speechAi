@@ -84,9 +84,11 @@ class BatchCreationService:
             if not valid_debtors:
                 return {
                     'success': False,
-                    'error': 'No hay deudores válidos para procesar después de filtrar duplicados',
+                    'error': f'❌ No hay contactos válidos para procesar. Se encontraron {len(duplicates_info)} duplicados en otros batches. '
+                             f'Si deseas crear un nuevo batch con estos mismos contactos, activa la opción "Permitir Duplicados" en el frontend.',
                     'duplicates': duplicates_info,
-                    'total_processed': 0
+                    'total_processed': 0,
+                    'suggestion': 'Activa allow_duplicates=true en el request para permitir contactos que ya existen en otros batches'
                 }
             
             # 5. Crear el batch

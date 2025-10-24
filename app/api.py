@@ -592,14 +592,14 @@ async def preview_excel_batch(
 @app.post("/api/v1/batches/excel/create")
 async def create_batch_from_excel(
     file: UploadFile = File(...),
-    account_id: str = Query(..., description="ID de la cuenta"),
-    batch_name: Optional[str] = Query(None, description="Nombre del batch"),
-    batch_description: Optional[str] = Query(None, description="Descripción del batch"),
-    allow_duplicates: bool = Query(False, description="Permitir duplicados"),
-    processing_type: str = Query("basic", description="Tipo de procesamiento: 'basic' o 'acquisition'"),
-    dias_fecha_limite: Optional[int] = Query(None, description="Días a agregar a fecha actual para calcular fecha_limite (ej: 30)"),
-    dias_fecha_maxima: Optional[int] = Query(None, description="Días a agregar a fecha actual para calcular fecha_maxima (ej: 45)"),
-    call_settings_json: Optional[str] = Query(None, description="JSON string con configuración de llamadas para este batch"),
+    account_id: str = Form(..., description="ID de la cuenta"),
+    batch_name: Optional[str] = Form(None, description="Nombre del batch"),
+    batch_description: Optional[str] = Form(None, description="Descripción del batch"),
+    allow_duplicates: bool = Form(False, description="Permitir duplicados"),
+    processing_type: str = Form("basic", description="Tipo de procesamiento: 'basic' o 'acquisition'"),
+    dias_fecha_limite: Optional[int] = Form(None, description="Días a agregar a fecha actual para calcular fecha_limite (ej: 30)"),
+    dias_fecha_maxima: Optional[int] = Form(None, description="Días a agregar a fecha actual para calcular fecha_maxima (ej: 45)"),
+    call_settings_json: Optional[str] = Form(None, description="JSON string con configuración de llamadas para este batch"),
     basic_service: BatchCreationService = Depends(get_batch_creation_service),
     chile_service: ChileBatchService = Depends(get_chile_batch_service)
 ):
@@ -621,6 +621,20 @@ async def create_batch_from_excel(
       '{"allowed_call_hours": {"start": "09:00", "end": "20:00"}, "timezone": "America/Santiago", "retry_settings": {"max_attempts": 5, "retry_delay_hours": 12}, "max_concurrent_calls": 10}'
     """
     try:
+        # Log para debugging
+        logger.info(f"📥 Recibiendo request para crear batch desde Excel")
+        logger.info(f"   - account_id: '{account_id}'")
+        logger.info(f"   - batch_name: '{batch_name}'")
+        logger.info(f"   - allow_duplicates: {allow_duplicates}")
+        logger.info(f"   - file: {file.filename}")
+        
+        # Validar account_id
+        if not account_id or account_id.lower() == "string" or account_id == "undefined":
+            raise HTTPException(
+                status_code=400, 
+                detail=f"❌ account_id inválido: '{account_id}'. Debe ser un ID válido como 'acc-a1b2c3d4e5f6'. El frontend debe enviar el ID real de la cuenta seleccionada."
+            )
+        
         # Verificar tipo de archivo
         if not file.filename.endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="Solo se permiten archivos Excel (.xlsx, .xls)")

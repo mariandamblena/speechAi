@@ -617,7 +617,8 @@ class ChileBatchService:
         batch_description: str = None,
         allow_duplicates: bool = False,
         dias_fecha_limite: Optional[int] = None,
-        dias_fecha_maxima: Optional[int] = None
+        dias_fecha_maxima: Optional[int] = None,
+        call_settings: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Crea batch usando lógica de adquisición avanzada
@@ -630,6 +631,7 @@ class ChileBatchService:
             allow_duplicates: Permitir duplicados
             dias_fecha_limite: Días a sumar a fecha actual para fecha_limite
             dias_fecha_maxima: Días a sumar a fecha actual para fecha_maxima
+            call_settings: Configuración de llamadas específica para este batch
             
         Returns:
             Resultado del procesamiento
@@ -702,6 +704,7 @@ class ChileBatchService:
                 completed_jobs=0,
                 failed_jobs=0,
                 is_active=True,
+                call_settings=call_settings,  # Agregar call_settings
                 created_at=datetime.utcnow(),
                 priority=1
             )

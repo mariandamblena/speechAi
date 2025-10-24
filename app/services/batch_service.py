@@ -4,7 +4,7 @@ Servicio para gestión de batches/lotes de llamadas
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from bson import ObjectId
 import uuid
 
@@ -27,9 +27,10 @@ class BatchService:
         account_id: str,
         name: str,
         description: str = "",
-        priority: int = 1
+        priority: int = 1,
+        call_settings: Optional[Dict[str, Any]] = None
     ) -> BatchModel:
-        """Crea un nuevo batch"""
+        """Crea un nuevo batch con configuración de llamadas opcional"""
         
         batch_id = f"batch-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
         
@@ -39,6 +40,7 @@ class BatchService:
             name=name,
             description=description,
             priority=priority,
+            call_settings=call_settings,  # Incluir call_settings
             created_at=datetime.utcnow()
         )
         
@@ -46,6 +48,9 @@ class BatchService:
         batch._id = result.inserted_id
         
         self.logger.info(f"Created batch {batch_id} for account {account_id}")
+        if call_settings:
+            self.logger.info(f"Batch {batch_id} has custom call_settings: {call_settings}")
+        
         return batch
     
     async def get_batch(self, batch_id: str) -> Optional[BatchModel]:
@@ -193,6 +198,62 @@ class BatchService:
             self.logger.info(f"Resumed batch {batch_id}")
         
         return result.modified_count > 0
+    
+    async def cancel_batch(self, batch_id: str, reason: Optional[str] = None) -> bool:
+        """
+        Cancela un batch completamente (diferente de pause)
+        
+        Diferencias:
+        - pause: Temporal, se puede reanudar
+        - cancel: Permanente, marca jobs pendientes como cancelled
+        
+        Args:
+            batch_id: ID del batch
+            reason: Razón de cancelación (opcional)
+        """
+        # 1. Marcar batch como inactivo
+        update_data = {
+            "is_active": False,
+            "completed_at": datetime.utcnow()
+        }
+        
+        # Agregar razón si se proporciona
+        if reason:
+            update_data["cancellation_reason"] = reason
+        
+        batch_result = await self.batches_collection.update_one(
+            {"batch_id": batch_id},
+            {"$set": update_data}
+        )
+        
+        if batch_result.matched_count == 0:
+            return False
+        
+        # 2. Cancelar todos los jobs pendientes
+        jobs_result = await self.jobs_collection.update_many(
+            {
+                "batch_id": batch_id,
+                "status": {"$in": [JobStatus.PENDING.value, JobStatus.SCHEDULED.value]}
+            },
+            {
+                "$set": {
+                    "status": JobStatus.CANCELLED.value,
+                    "updated_at": datetime.utcnow(),
+                    "cancellation_reason": reason or "Batch cancelled"
+                }
+            }
+        )
+        
+        # 3. Actualizar estadísticas del batch
+        await self.update_batch_stats(batch_id)
+        
+        self.logger.info(
+            f"Cancelled batch {batch_id}. "
+            f"Jobs cancelled: {jobs_result.modified_count}. "
+            f"Reason: {reason or 'Not specified'}"
+        )
+        
+        return True
     
     async def delete_batch(self, batch_id: str, delete_jobs: bool = False) -> bool:
         """Elimina un batch y opcionalmente sus jobs"""

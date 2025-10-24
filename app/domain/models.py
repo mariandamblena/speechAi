@@ -346,6 +346,7 @@ class CallResult:
 
 
 @dataclass
+@dataclass
 class AccountModel:
     """Modelo para cuentas de usuario con sistema de créditos"""
     _id: Optional[ObjectId] = None
@@ -353,6 +354,11 @@ class AccountModel:
     account_name: str = ""
     plan_type: PlanType = PlanType.MINUTES_BASED
     status: AccountStatus = AccountStatus.PENDING_ACTIVATION
+    
+    # Información de contacto
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
     
     # Balance para planes basados en minutos
     minutes_purchased: float = 0.0
@@ -373,6 +379,10 @@ class AccountModel:
     max_concurrent_calls: int = 3
     daily_call_limit: int = 1000
     calls_today: int = 0
+    
+    # Features y settings opcionales (como dict para flexibilidad)
+    features: Optional[Dict[str, Any]] = None
+    settings: Optional[Dict[str, Any]] = None
     
     # Timestamps
     created_at: Optional[datetime] = None
@@ -645,6 +655,16 @@ class BatchModel:
     is_active: bool = True
     priority: int = 1  # 1 = normal, 2 = alta, 3 = urgente
     
+    # Configuraciones de llamadas por campaña (PROBLEMA #1 SOLUCIONADO)
+    call_settings: Optional[Dict[str, Any]] = None  # Configuraciones específicas de esta campaña
+    # Estructura:
+    # {
+    #   "allowed_call_hours": {"start": "09:00", "end": "18:00"},
+    #   "timezone": "America/Santiago",
+    #   "retry_settings": {"max_attempts": 3, "retry_delay_hours": 24, "hours_between_attempts": 24},
+    #   "max_concurrent_calls": 5  # Override del límite de la cuenta para esta campaña
+    # }
+    
     # Timestamps
     created_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
@@ -679,6 +699,7 @@ class BatchModel:
             "estimated_cost": self.estimated_cost,
             "is_active": self.is_active,
             "priority": self.priority,
+            "call_settings": self.call_settings,  # Agregar call_settings
             "created_at": self.created_at,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
@@ -709,6 +730,7 @@ class BatchModel:
             estimated_cost=data.get("estimated_cost", 0.0),
             is_active=data.get("is_active", True),
             priority=data.get("priority", 1),
+            call_settings=data.get("call_settings"),  # Agregar call_settings
             created_at=data.get("created_at"),
             started_at=data.get("started_at"),
             completed_at=data.get("completed_at"),

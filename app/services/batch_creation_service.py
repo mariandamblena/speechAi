@@ -32,7 +32,8 @@ class BatchCreationService:
         batch_description: str = None,
         allow_duplicates: bool = False,
         dias_fecha_limite: Optional[int] = None,
-        dias_fecha_maxima: Optional[int] = None
+        dias_fecha_maxima: Optional[int] = None,
+        call_settings: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Crea un batch completo desde archivo Excel con anti-duplicación
@@ -45,6 +46,7 @@ class BatchCreationService:
             allow_duplicates: Si permite duplicados (default: False)
             dias_fecha_limite: Días a sumar a fecha actual para fecha_limite (ej: 30)
             dias_fecha_maxima: Días a sumar a fecha actual para fecha_maxima (ej: 45)
+            call_settings: Configuración de llamadas específica para este batch
         
         Returns:
             Diccionario con resultado del procesamiento
@@ -95,6 +97,7 @@ class BatchCreationService:
                 description=batch_description or f"Importado desde Excel con {len(valid_debtors)} deudores",
                 total_jobs=len(valid_debtors),
                 pending_jobs=len(valid_debtors),
+                call_settings=call_settings,  # Agregar call_settings
                 created_at=datetime.utcnow()
             )
             

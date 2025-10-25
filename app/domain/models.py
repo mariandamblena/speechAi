@@ -669,6 +669,7 @@ class BatchModel:
     created_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
     @property
     def completion_rate(self) -> float:
@@ -703,6 +704,7 @@ class BatchModel:
             "created_at": self.created_at,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
+            "updated_at": self.updated_at,
         }
         
         # Solo incluir _id si existe
@@ -734,6 +736,7 @@ class BatchModel:
             created_at=data.get("created_at"),
             started_at=data.get("started_at"),
             completed_at=data.get("completed_at"),
+            updated_at=data.get("updated_at"),
         )
 
 

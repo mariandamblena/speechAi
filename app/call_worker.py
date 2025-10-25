@@ -203,6 +203,9 @@ class JobStore:
         self.coll = coll
         self.db = db
         
+        # Acceso a colección de batches para verificar estado
+        self.batches_coll = db["batches"] if db is not None else None
+        
         # Check if we can update account/batch usage
         if db is not None:
             print("[DEBUG] JobStore initialized with database access for usage tracking")
@@ -213,31 +216,57 @@ class JobStore:
         """
         Reserva un job 'pending' cuyo lease esté vencido o vacío.
         NUEVO: Solo toma jobs que no tengan resultado exitoso previo.
+        NUEVO: No toma jobs de batches pausados (is_active=False).
         """
         now = utcnow()
         reservation = lease_expires_in(LEASE_SECONDS)
         
         print(f"[DEBUG] [{worker_id}] Buscando jobs pendientes...")
         print(f"[DEBUG] [{worker_id}] Timestamp actual: {now}")
-        print(f"[DEBUG] [{worker_id}] Filtro: status=pending, sin resultado exitoso, respeta delay por persona")
+        print(f"[DEBUG] [{worker_id}] Filtro: status=pending, sin resultado exitoso, respeta delay por persona, batch activo")
 
         try:
+            # Primero obtener IDs de batches activos
+            active_batch_ids = []
+            if self.batches_coll is not None:
+                active_batches_cursor = self.batches_coll.find(
+                    {"is_active": True},
+                    {"batch_id": 1}
+                )
+                active_batch_ids = [batch["batch_id"] for batch in active_batches_cursor]
+                print(f"[DEBUG] [{worker_id}] Batches activos encontrados: {len(active_batch_ids)}")
+            
+            # Construir filtro base
+            base_filter = {
+                "$or": [
+                    # Jobs pending normales
+                    {"status": "pending"},
+                    # Jobs failed listos para retry
+                    {
+                        "status": "failed",
+                        "attempts": {"$lt": MAX_TRIES},
+                        "$or": [
+                            {"next_try_at": {"$exists": False}},
+                            {"next_try_at": {"$lte": now}}
+                        ]
+                    }
+                ]
+            }
+            
+            # Agregar filtro para batches activos o jobs sin batch
+            if active_batch_ids:
+                base_filter["$and"] = [
+                    {
+                        "$or": [
+                            {"batch_id": {"$in": active_batch_ids}},  # Jobs de batches activos
+                            {"batch_id": {"$exists": False}},  # Jobs sin batch
+                            {"batch_id": None}  # Jobs con batch_id explícitamente None
+                        ]
+                    }
+                ]
+            
             doc = self.coll.find_one_and_update(
-                filter={
-                    "$or": [
-                        # Jobs pending normales
-                        {"status": "pending"},
-                        # Jobs failed listos para retry
-                        {
-                            "status": "failed",
-                            "attempts": {"$lt": MAX_TRIES},
-                            "$or": [
-                                {"next_try_at": {"$exists": False}},
-                                {"next_try_at": {"$lte": now}}
-                            ]
-                        }
-                    ]
-                },
+                filter=base_filter,
                 update={
                     "$set": {
                         "status": "in_progress",

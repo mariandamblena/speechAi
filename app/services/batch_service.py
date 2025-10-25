@@ -22,6 +22,26 @@ class BatchService:
         self.jobs_collection = db_manager.get_collection("jobs")
         self.logger = logging.getLogger(__name__)
     
+    def _get_batch_filter(self, batch_id: str) -> Dict[str, Any]:
+        """
+        Genera filtro para buscar batch por batch_id o _id
+        
+        Args:
+            batch_id: Puede ser batch_id personalizado o _id de MongoDB
+        
+        Returns:
+            Filtro MongoDB
+        """
+        # Intentar como ObjectId primero
+        try:
+            if ObjectId.is_valid(batch_id):
+                return {"_id": ObjectId(batch_id)}
+        except:
+            pass
+        
+        # Si no es ObjectId válido, buscar por batch_id
+        return {"batch_id": batch_id}
+    
     async def create_batch(
         self,
         account_id: str,
@@ -54,8 +74,11 @@ class BatchService:
         return batch
     
     async def get_batch(self, batch_id: str) -> Optional[BatchModel]:
-        """Obtiene un batch por ID"""
-        data = await self.batches_collection.find_one({"batch_id": batch_id})
+        """
+        Obtiene un batch por ID (acepta batch_id o _id de MongoDB)
+        """
+        batch_filter = self._get_batch_filter(batch_id)
+        data = await self.batches_collection.find_one(batch_filter)
         if data:
             return BatchModel.from_dict(data)
         return None
@@ -179,7 +202,7 @@ class BatchService:
         """Pausa un batch (marca como inactivo)"""
         result = await self.batches_collection.update_one(
             {"batch_id": batch_id},
-            {"$set": {"is_active": False}}
+            {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
         )
         
         if result.modified_count > 0:
@@ -191,13 +214,40 @@ class BatchService:
         """Reanuda un batch pausado"""
         result = await self.batches_collection.update_one(
             {"batch_id": batch_id},
-            {"$set": {"is_active": True}}
+            {"$set": {"is_active": True, "updated_at": datetime.utcnow()}}
         )
         
         if result.modified_count > 0:
             self.logger.info(f"Resumed batch {batch_id}")
         
         return result.modified_count > 0
+    
+    async def update_batch(self, batch_id: str, update_data: Dict[str, Any]) -> bool:
+        """
+        Actualiza propiedades de un batch
+        
+        Args:
+            batch_id: ID del batch a actualizar (puede ser batch_id o _id de MongoDB)
+            update_data: Diccionario con los campos a actualizar
+        
+        Returns:
+            True si se actualizó, False si no se encontró el batch
+        """
+        # Agregar timestamp de actualización
+        update_data["updated_at"] = datetime.utcnow()
+        
+        # Usar filtro que acepta ambos formatos
+        batch_filter = self._get_batch_filter(batch_id)
+        
+        result = await self.batches_collection.update_one(
+            batch_filter,
+            {"$set": update_data}
+        )
+        
+        if result.modified_count > 0:
+            self.logger.info(f"Updated batch {batch_id} with fields: {list(update_data.keys())}")
+        
+        return result.matched_count > 0
     
     async def cancel_batch(self, batch_id: str, reason: Optional[str] = None) -> bool:
         """
@@ -256,18 +306,38 @@ class BatchService:
         return True
     
     async def delete_batch(self, batch_id: str, delete_jobs: bool = False) -> bool:
-        """Elimina un batch y opcionalmente sus jobs"""
+        """
+        Elimina un batch y cancela o elimina sus jobs
+        
+        Args:
+            batch_id: ID del batch a eliminar
+            delete_jobs: Si True, elimina los jobs; si False, solo los cancela
+        """
         
         if delete_jobs:
             # Eliminar todos los jobs del batch
             jobs_result = await self.jobs_collection.delete_many({"batch_id": batch_id})
             self.logger.info(f"Deleted {jobs_result.deleted_count} jobs from batch {batch_id}")
         else:
-            # Solo remover la referencia al batch de los jobs
-            await self.jobs_collection.update_many(
-                {"batch_id": batch_id},
-                {"$unset": {"batch_id": ""}}
+            # Cancelar jobs pendientes y en progreso (no eliminar completados/failed)
+            jobs_result = await self.jobs_collection.update_many(
+                {
+                    "batch_id": batch_id,
+                    "status": {"$in": [
+                        JobStatus.PENDING.value, 
+                        JobStatus.SCHEDULED.value,
+                        JobStatus.IN_PROGRESS.value
+                    ]}
+                },
+                {
+                    "$set": {
+                        "status": JobStatus.CANCELLED.value,
+                        "updated_at": datetime.utcnow(),
+                        "cancellation_reason": "Batch deleted"
+                    }
+                }
             )
+            self.logger.info(f"Cancelled {jobs_result.modified_count} jobs from batch {batch_id}")
         
         # Eliminar el batch
         result = await self.batches_collection.delete_one({"batch_id": batch_id})

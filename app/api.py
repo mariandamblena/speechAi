@@ -73,6 +73,13 @@ class ExcelBatchRequest(BaseModel):
     batch_description: Optional[str] = None
     allow_duplicates: bool = False
 
+class UpdateBatchRequest(BaseModel):
+    """Request para actualizar un batch"""
+    is_active: Optional[bool] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[int] = None
+
 # ============================================================================
 # CONFIGURACIÓN Y STARTUP
 # ============================================================================
@@ -536,6 +543,50 @@ async def cancel_batch(
         "reason": reason
     }
 
+@app.patch("/api/v1/batches/{batch_id}")
+async def update_batch(
+    batch_id: str,
+    request: UpdateBatchRequest,
+    service: BatchService = Depends(get_batch_service)
+):
+    """
+    Actualizar propiedades de un batch (incluyendo pausar/reanudar)
+    
+    Args:
+        batch_id: ID del batch a actualizar (puede ser batch_id o _id de MongoDB)
+        request: Datos a actualizar (is_active, name, description, priority)
+    """
+    update_data = {}
+    
+    if request.is_active is not None:
+        update_data["is_active"] = request.is_active
+    if request.name is not None:
+        update_data["name"] = request.name
+    if request.description is not None:
+        update_data["description"] = request.description
+    if request.priority is not None:
+        update_data["priority"] = request.priority
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    # Intentar actualizar por batch_id o por _id
+    success = await service.update_batch(batch_id, update_data)
+    if not success:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    
+    # Determinar mensaje según la acción
+    message = "Batch updated successfully"
+    if request.is_active is not None:
+        message = "Batch resumed" if request.is_active else "Batch paused"
+    
+    return {
+        "success": True, 
+        "message": message,
+        "batch_id": batch_id,
+        "updated_fields": list(update_data.keys())
+    }
+
 @app.delete("/api/v1/batches/{batch_id}")
 async def delete_batch(
     batch_id: str,
@@ -757,7 +808,7 @@ async def get_job(
     service: JobService = Depends(get_job_service)
 ):
     """Obtener información de un job específico"""
-    job = await service.get_job(job_id)
+    job = await service.get_job_by_id(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
@@ -1235,11 +1286,20 @@ async def get_batch_jobs(
     status: Optional[str] = Query(None),
     limit: int = Query(100, le=1000),
     skip: int = Query(0, ge=0),
-    service: JobService = Depends(get_job_service)
+    batch_service: BatchService = Depends(get_batch_service),
+    job_service: JobService = Depends(get_job_service)
 ):
     """Obtener jobs de un batch específico"""
     try:
         from domain.enums import JobStatus
+        
+        # Primero obtener el batch para conseguir el batch_id real
+        batch = await batch_service.get_batch(batch_id)
+        if not batch:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        
+        # Usar el batch_id personalizado para buscar jobs
+        actual_batch_id = batch.batch_id
         
         status_enum = None
         if status:
@@ -1248,19 +1308,12 @@ async def get_batch_jobs(
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
         
-        jobs = await service.list_jobs(
-            batch_id=batch_id,
+        jobs = await job_service.list_jobs(
+            batch_id=actual_batch_id,
             status=status_enum,
             limit=limit,
             skip=skip
         )
-        
-        if not jobs and skip == 0:
-            # Verificar que el batch existe
-            batch_service = await get_batch_service()
-            batch = await batch_service.get_batch(batch_id)
-            if not batch:
-                raise HTTPException(status_code=404, detail="Batch not found")
         
         return [serialize_objectid(job.to_dict()) for job in jobs]
         

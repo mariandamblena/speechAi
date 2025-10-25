@@ -57,5 +57,5 @@ Thumbs.db
 # Node modules (si usas Node.js)
 node_modules/
 
-.xlsx
+*.xlsx
 *.xls  

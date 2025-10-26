@@ -20,7 +20,9 @@ from utils.normalizers import (
     normalize_date,
     normalize_rut,
     normalize_key,
-    split_phone_candidates
+    split_phone_candidates,
+    to_number_pesos,
+    to_int
 )
 
 logger = logging.getLogger(__name__)

@@ -348,6 +348,51 @@ await Promise.allSettled(deletePromises);
 
 ---
 
-**Fecha de actualización:** 25 de Octubre, 2025  
-**Versión:** 2.0 (Completado)  
-**Estado:** ✅ TODOS LOS REQUISITOS IMPLEMENTADOS Y PROBADOS
+## 📚 Documentación Adicional
+
+### Guías de Validación y Testing
+
+1. **Pipeline de Validación Completo**
+   - **Archivo:** `docs/PIPELINE_VALIDATION_GUIDE.md`
+   - **Descripción:** Guía completa para validar el flujo desde frontend hasta Retell AI
+   - **Incluye:**
+     - Logs esperados en cada paso (API → BatchCreationService → MongoDB → Worker → Retell)
+     - Estructura de datos esperada en MongoDB
+     - Checklist de validación completo
+     - Problemas comunes y soluciones
+     - Comandos útiles para debugging
+
+2. **Mapeo de Variables Prompt de Retell AI**
+   - **Archivo:** `docs/RETELL_PROMPT_VARIABLES_MAPPING.md`
+   - **Descripción:** Mapeo detallado entre variables del prompt de Retell AI y backend
+   - **Incluye:**
+     - Tabla de mapeo completo (prompt ↔ backend ↔ MongoDB)
+     - Flujo de datos completo (Excel → API → Worker → Retell)
+     - Validación de tipos de datos (todo debe ser string)
+     - Ejemplos de validación en logs
+     - Troubleshooting de variables faltantes o incorrectas
+
+3. **Referencia de Endpoints para Frontend**
+   - **Archivo:** `docs/API_FRONTEND_REFERENCE.md`
+   - **Descripción:** Documentación completa de todos los endpoints de la API
+   - **Incluye:**
+     - Gestión de Batches (crear, pausar, reanudar, eliminar)
+     - Gestión de Jobs (consultar, cancelar, reintentar)
+     - Ejemplos de uso con curl
+     - Códigos de error y respuestas
+
+4. **Implementación de Pausa de Batches**
+   - **Archivo:** `docs/BATCH_PAUSE_IMPLEMENTATION.md`
+   - **Descripción:** Detalles técnicos de cómo funciona la pausa de batches
+   - **Incluye:**
+     - Arquitectura de la solución
+     - Cambios en base de datos
+     - Lógica del worker
+     - Scripts de migración
+
+---
+
+**Fecha de actualización:** 26 de Octubre, 2025  
+**Versión:** 2.1 (Completado + Documentación de Validación)  
+**Estado:** ✅ TODOS LOS REQUISITOS IMPLEMENTADOS, PROBADOS Y DOCUMENTADOS
+

@@ -334,6 +334,49 @@ async def activate_account(
     
     return {"success": True, "message": "Account activated"}
 
+@app.get("/api/v1/accounts/{account_id}/last-call-settings")
+async def get_last_call_settings(
+    account_id: str
+):
+    """
+    Obtener la última configuración de call_settings utilizada por esta cuenta.
+    Útil para pre-llenar el formulario de configuración en el frontend.
+    
+    Returns:
+        - call_settings: Última configuración utilizada
+        - from_batch: ID del batch del que se obtuvo la configuración
+        - created_at: Fecha de creación de ese batch
+    """
+    try:
+        # Buscar el último batch de esta cuenta que tenga call_settings
+        batches_coll = db_manager.batches
+        
+        last_batch = await batches_coll.find_one(
+            {
+                "account_id": account_id,
+                "call_settings": {"$exists": True, "$ne": None}
+            },
+            sort=[("created_at", -1)]  # Más reciente primero
+        )
+        
+        if not last_batch:
+            return {
+                "success": False,
+                "message": "No previous call_settings found for this account",
+                "call_settings": None
+            }
+        
+        return {
+            "success": True,
+            "call_settings": last_batch.get("call_settings"),
+            "from_batch": last_batch.get("batch_id"),
+            "created_at": last_batch.get("created_at").isoformat() if last_batch.get("created_at") else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting last call_settings: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error obtaining call settings: {str(e)}")
+
 
 # ============================================================================
 # ENDPOINTS - BATCH MANAGEMENT
@@ -676,8 +719,12 @@ async def create_batch_from_excel(
         logger.info(f"📥 Recibiendo request para crear batch desde Excel")
         logger.info(f"   - account_id: '{account_id}'")
         logger.info(f"   - batch_name: '{batch_name}'")
+        logger.info(f"   - processing_type: '{processing_type}'")
         logger.info(f"   - allow_duplicates: {allow_duplicates}")
         logger.info(f"   - file: {file.filename}")
+        logger.info(f"   - dias_fecha_limite: {dias_fecha_limite}")
+        logger.info(f"   - dias_fecha_maxima: {dias_fecha_maxima}")
+        logger.info(f"   - call_settings_json: {call_settings_json[:100] if call_settings_json else 'None'}...")
         
         # Validar account_id
         if not account_id or account_id.lower() == "string" or account_id == "undefined":

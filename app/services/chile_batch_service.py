@@ -15,6 +15,13 @@ from domain.enums import JobStatus, CallMode, AccountStatus
 from infrastructure.database_manager import DatabaseManager
 from utils.excel_processor import ExcelDebtorProcessor
 from services.account_service import AccountService
+from utils.normalizers import (
+    normalize_phone_cl,
+    normalize_date,
+    normalize_rut,
+    normalize_key,
+    split_phone_candidates
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +43,17 @@ class ChileBatchService:
             'default_area_code': '2'
         }
     
+    # ============================================================================
+    # MÉTODOS DEPRECADOS - Usar utils.normalizers directamente
+    # ============================================================================
+    
     def _norm_key(self, key: str) -> str:
-        """Normaliza claves para búsqueda flexible"""
+        """DEPRECATED: Usar normalize_key() de utils.normalizers"""
+        return normalize_key(key)
+    
+    def _norm_rut(self, rut_raw: Any) -> Optional[str]:
+        """DEPRECATED: Usar normalize_rut() de utils.normalizers"""
+        return normalize_rut(rut_raw)
         if not key:
             return ""
         
@@ -53,137 +69,20 @@ class ChileBatchService:
         return clean
     
     def _norm_rut(self, rut_raw: Any) -> Optional[str]:
-        """Normaliza RUT chileno removiendo puntos y guiones"""
-        if rut_raw is None or rut_raw == '':
-            return None
-        
-        # Quitar puntos y guion, mantener mayúsculas
-        rut_clean = str(rut_raw).replace('.', '').replace('-', '').strip().upper()
-        return rut_clean if rut_clean else None
-    
-    def _to_number_pesos(self, value: Any) -> float:
-        """Convierte valor a pesos (no centavos)"""
-        if value is None or value == '':
-            return 0.0
-        
-        if isinstance(value, (int, float)):
-            return float(value)
-        
-        # Limpiar string: remover $, espacios, puntos (miles), cambiar coma por punto (decimales)
-        value_str = str(value).strip()
-        value_str = re.sub(r'[\s$]', '', value_str)  # Remover espacios y $
-        value_str = value_str.replace('.', '').replace(',', '.')  # Miles y decimales
-        
-        try:
-            return float(value_str)
-        except ValueError:
-            return 0.0
-    
-    def _to_int(self, value: Any, default: int = 0) -> int:
-        """Convierte valor a entero"""
-        if value is None or value == '':
-            return default
-        
-        try:
-            # Limpiar y convertir
-            clean_str = re.sub(r'[^\d\-]', '', str(value))
-            return int(clean_str) if clean_str else default
-        except ValueError:
-            return default
+        """DEPRECATED: Usar normalize_rut() de utils.normalizers"""
+        return normalize_rut(rut_raw)
     
     def _split_phones(self, raw_phone: str) -> List[str]:
-        """Genera candidatos de número telefónico"""
-        if not raw_phone:
-            return []
-        
-        phone_str = str(raw_phone).strip()
-        
-        # Separar por caracteres no dígitos
-        parts = re.split(r'\D+', phone_str)
-        parts = [p for p in parts if p]  # Filtrar vacíos
-        
-        # Todos los dígitos juntos
-        all_digits = re.sub(r'\D+', '', phone_str)
-        
-        candidates = set()
-        if all_digits:
-            candidates.add(all_digits)
-        
-        for part in parts:
-            candidates.add(part)
-        
-        # Si hay al menos 2 partes y la primera es corta (código área), unir primeras dos
-        if len(parts) >= 2 and len(parts[0]) <= 3:
-            candidates.add(parts[0] + parts[1])
-        
-        return list(candidates)
+        """DEPRECATED: Usar split_phone_candidates() de utils.normalizers"""
+        return split_phone_candidates(raw_phone)
     
     def _norm_cl_phone(self, raw_phone: Any, kind: str = 'any') -> Optional[str]:
-        """
-        Normaliza teléfonos chilenos a formato E.164 (+56XXXXXXXXX)
-        
-        Args:
-            raw_phone: Número crudo
-            kind: 'mobile', 'landline', 'any'
-        
-        Returns:
-            Número normalizado en formato +56XXXXXXXXX o None
-        """
-        if raw_phone is None or raw_phone == '':
-            return None
-        
-        want_mobile = kind == 'mobile'
-        want_landline = kind == 'landline'
-        want_any = kind == 'any'
-        
-        candidates = self._split_phones(str(raw_phone))
-        
-        for number in candidates:
-            # 1. Remover código país y trunk
-            if number.startswith('56'):
-                number = number[2:]
-            
-            # Remover ceros iniciales (trunk)
-            number = re.sub(r'^0+', '', number)
-            
-            # 2. Heurísticas para casos frecuentes
-            
-            # Móviles que llegan como "5699xxxxxxxx" -> "99xxxxxxxx" (10 dígitos)
-            if len(number) == 10 and number.startswith('99'):
-                number = number[1:]  # -> "9xxxxxxxx" (9 dígitos)
-            
-            # Móvil legado: 8 dígitos empezando con 9 -> anteponer 9
-            # Ej: "09-2125907" -> "92125907" -> "992125907"
-            if len(number) == 8 and number[0] == '9':
-                number = '9' + number
-            
-            # Fijo Santiago legado: "2" + 7 dígitos -> anteponer otro '2'
-            # Ej: "02-8151807" -> "28151807" -> "228151807"
-            if len(number) == 8 and number[0] == '2' and not number.startswith('22'):
-                number = '2' + number
-            
-            # 3. Normalización por tipo
-            if want_mobile and len(number) == 8 and number[0] != '9':
-                number = '9' + number
-            
-            if (want_landline or want_any) and len(number) in [7, 8] and number[0] != '9':
-                area_code = self.country_config.get('default_area_code', '2')
-                number = area_code + number
-            
-            # 4. Validación final
-            if len(number) != 9:
-                continue
-            
-            is_mobile = number.startswith('9')
-            
-            if want_mobile and not is_mobile:
-                continue
-            if want_landline and is_mobile:
-                continue
-            
-            return f'+56{number}'
-        
-        return None
+        """DEPRECATED: Usar normalize_phone_cl() de utils.normalizers"""
+        return normalize_phone_cl(raw_phone, kind, self.country_config.get('default_area_code', '2'))
+    
+    def _to_iso_date(self, value: Any) -> Optional[str]:
+        """DEPRECATED: Usar normalize_date() de utils.normalizers"""
+        return normalize_date(value)
     
     def _get_field(self, row: Dict, key_index: Dict, candidates: List[str]) -> Any:
         """Obtiene campo del row usando candidatos de nombres"""

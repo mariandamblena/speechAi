@@ -86,6 +86,18 @@ class ChileBatchService:
         """DEPRECATED: Usar normalize_date() de utils.normalizers"""
         return normalize_date(value)
     
+    def _to_number_pesos(self, value: Any) -> float:
+        """DEPRECATED: Usar to_number_pesos() de utils.normalizers"""
+        return to_number_pesos(value)
+    
+    def _to_int(self, value: Any, default: int = 0) -> int:
+        """DEPRECATED: Usar to_int() de utils.normalizers"""
+        return to_int(value, default)
+    
+    # ============================================================================
+    # MÉTODOS DE CONVERSIÓN NUMÉRICA (Mantener - no hay duplicación)
+    # ============================================================================
+    
     def _get_field(self, row: Dict, key_index: Dict, candidates: List[str]) -> Any:
         """Obtiene campo del row usando candidatos de nombres"""
         # Búsqueda exacta

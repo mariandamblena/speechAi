@@ -1,6 +1,7 @@
 """
 Utilidades para procesamiento de archivos Excel de deudores
 Implementa la lógica del workflow Adquisicion_v3 en Python
+Soporte multi-país: Chile (CL) y Argentina (AR)
 """
 
 import re
@@ -8,6 +9,20 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, Any, Union
 from io import BytesIO
+
+# Importar normalizadores centralizados
+from utils.normalizers import (
+    normalize_phone_cl,
+    normalize_phone_ar,
+    normalize_date,
+    normalize_rut,
+    format_rut,
+    normalize_key,
+    add_days_iso,
+    to_number_pesos,
+    to_int,
+    to_float
+)
 
 
 class ChileanDataNormalizer:
@@ -277,10 +292,23 @@ class ChileanDataNormalizer:
 
 
 class ExcelDebtorProcessor:
-    """Procesador principal de archivos Excel de deudores"""
+    """Procesador principal de archivos Excel de deudores - Multi-país"""
     
-    def __init__(self):
-        self.normalizer = ChileanDataNormalizer()
+    def __init__(self, country: str = "CL"):
+        """
+        Inicializa el procesador
+        
+        Args:
+            country: Código ISO del país ("CL" para Chile, "AR" para Argentina)
+        """
+        self.country = country.upper()
+        self.normalizer = ChileanDataNormalizer()  # Mantenemos para compatibilidad
+        
+        # Seleccionar función de normalización de teléfonos según país
+        if self.country == "AR":
+            self.normalize_phone = normalize_phone_ar
+        else:  # Default: CL
+            self.normalize_phone = normalize_phone_cl
     
     def get_field_value(self, row: pd.Series, key_candidates: List[str]) -> Any:
         """
@@ -290,12 +318,12 @@ class ExcelDebtorProcessor:
         # Crear índice normalizado de columnas
         key_index = {}
         for col in row.index:
-            normalized_col = self.normalizer.normalize_key(col)
+            normalized_col = normalize_key(col)
             key_index[normalized_col] = col
         
         # Buscar por candidatos exactos
         for candidate in key_candidates:
-            normalized_candidate = self.normalizer.normalize_key(candidate)
+            normalized_candidate = normalize_key(candidate)
             if normalized_candidate in key_index:
                 value = row[key_index[normalized_candidate]]
                 # Retornar None si es NaN de pandas
@@ -338,21 +366,21 @@ class ExcelDebtorProcessor:
                     'Origen Empresa', 'OrigenEmpresa', 'Empresa', 'origen_empresa'
                 ]) or '').strip()
                 
-                saldo = self.normalizer.to_number_pesos(
+                saldo = to_number_pesos(
                     self.get_field_value(row, [
                         'Saldo actualizado', 'Saldo Actualizado', ' Saldo actualizado ', 'saldo'
                     ])
                 )
                 
                 # Fechas y días de retraso
-                fecha_venc = self.normalizer.to_iso_date(
+                fecha_venc = normalize_date(
                     self.get_field_value(row, [
                         'FechaVencimiento', 'Fecha Vencimiento', 'Fecha vencimiento',
                         'Vencimiento', 'Fecha de Vencimiento'
                     ])
                 )
                 
-                dias_retraso = self.normalizer.to_int(
+                dias_retraso = to_int(
                     self.get_field_value(row, [
                         'diasRetraso', 'Días de retraso', 'Dias de retraso',
                         'Días de atraso', 'Dias de atraso', 'Dias retraso',
@@ -370,15 +398,15 @@ class ExcelDebtorProcessor:
                 ])
                 
                 # Normalizar RUT
-                rut = self.normalizer.normalize_rut(rut_raw)
+                rut = normalize_rut(rut_raw)
                 if not rut:
                     continue  # Saltar filas sin RUT válido
                 
-                # Normalizar teléfonos
-                mobile_e164 = self.normalizer.normalize_cl_phone(mobile_raw, 'mobile')
+                # Normalizar teléfonos según país
+                mobile_e164 = self.normalize_phone(mobile_raw, 'mobile')
                 landline_e164 = (
-                    self.normalizer.normalize_cl_phone(landline_raw, 'landline') or
-                    self.normalizer.normalize_cl_phone(landline_raw, 'any')
+                    self.normalize_phone(landline_raw, 'landline') or
+                    self.normalize_phone(landline_raw, 'any')
                 )
                 best_e164 = mobile_e164 or landline_e164
                 
@@ -387,7 +415,7 @@ class ExcelDebtorProcessor:
                     debtors_by_rut[rut] = {
                         'batch_id': batch_id,
                         'rut': rut,
-                        'rut_fmt': self.normalizer.format_rut(rut),
+                        'rut_fmt': format_rut(rut),
                         'nombre': nombre,
                         'origen_empresa': empresa or None,
                         'phones': {
@@ -440,12 +468,12 @@ class ExcelDebtorProcessor:
                 if debtor['_max_base']:
                     base_date = debtor['_max_base']['fecha_venc']
                     days_to_add = debtor['_max_base']['dias_retraso'] + 3
-                    debtor['fecha_limite'] = self.normalizer.add_days_iso(base_date, days_to_add)
+                    debtor['fecha_limite'] = add_days_iso(base_date, days_to_add)
                 
                 if debtor['_min_base']:
                     base_date = debtor['_min_base']['fecha_venc']
                     days_to_add = debtor['_min_base']['dias_retraso'] + 7
-                    debtor['fecha_maxima'] = self.normalizer.add_days_iso(base_date, days_to_add)
+                    debtor['fecha_maxima'] = add_days_iso(base_date, days_to_add)
                 
                 # Limpiar campos temporales
                 del debtor['_max_base']

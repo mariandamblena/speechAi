@@ -39,8 +39,11 @@ class CreateAccountRequest(BaseModel):
     plan_type: str = "credit_based"  # "credit_based" o "minutes_based"
     initial_minutes: Optional[float] = None
     initial_credits: Optional[float] = None
-    features: Optional[Dict[str, Any]] = None  # max_concurrent_calls, etc.
-    settings: Optional[Dict[str, Any]] = None  # timezone, etc.
+    country: str = "CL"  # Código ISO del país: CL (Chile), AR (Argentina)
+    timezone: Optional[str] = None  # Ej: "America/Santiago", "America/Argentina/Buenos_Aires"
+    max_concurrent_calls: Optional[int] = 5  # Límite de llamadas concurrentes
+    features: Optional[Dict[str, Any]] = None  # Otras características opcionales
+    settings: Optional[Dict[str, Any]] = None  # Configuraciones adicionales
 
 class TopupRequest(BaseModel):
     minutes: Optional[float] = None
@@ -240,6 +243,9 @@ async def create_account(
             contact_name=request.contact_name,
             contact_email=request.contact_email,
             contact_phone=request.contact_phone,
+            country=request.country,
+            timezone=request.timezone,
+            max_concurrent_calls=request.max_concurrent_calls,
             features=request.features,
             settings=request.settings
         )

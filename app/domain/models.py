@@ -360,6 +360,10 @@ class AccountModel:
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     
+    # Configuración regional
+    country: str = "CL"  # Código ISO 3166-1 alpha-2: CL (Chile), AR (Argentina), etc.
+    timezone: Optional[str] = None  # Ej: "America/Santiago", "America/Argentina/Buenos_Aires"
+    
     # Balance para planes basados en minutos
     minutes_purchased: float = 0.0
     minutes_used: float = 0.0
@@ -498,6 +502,13 @@ class AccountModel:
             "max_concurrent_calls": self.max_concurrent_calls,
             "daily_call_limit": self.daily_call_limit,
             "calls_today": self.calls_today,
+            "country": self.country,
+            "timezone": self.timezone,
+            "contact_name": self.contact_name,
+            "contact_email": self.contact_email,
+            "contact_phone": self.contact_phone,
+            "features": self.features,
+            "settings": self.settings,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "expires_at": self.expires_at,
@@ -519,6 +530,11 @@ class AccountModel:
             account_name=data.get("account_name", ""),
             plan_type=PlanType(data.get("plan_type", "minutes_based")),
             status=AccountStatus(data.get("status", "pending_activation")),
+            contact_name=data.get("contact_name"),
+            contact_email=data.get("contact_email"),
+            contact_phone=data.get("contact_phone"),
+            country=data.get("country", "CL"),
+            timezone=data.get("timezone"),
             minutes_purchased=data.get("minutes_purchased", 0.0),
             minutes_used=data.get("minutes_used", 0.0),
             minutes_reserved=data.get("minutes_reserved", 0.0),
@@ -531,6 +547,8 @@ class AccountModel:
             max_concurrent_calls=data.get("max_concurrent_calls", 3),
             daily_call_limit=data.get("daily_call_limit", 1000),
             calls_today=data.get("calls_today", 0),
+            features=data.get("features"),
+            settings=data.get("settings"),
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
             expires_at=data.get("expires_at"),

@@ -30,6 +30,9 @@ class AccountService:
         contact_name: Optional[str] = None,
         contact_email: Optional[str] = None,
         contact_phone: Optional[str] = None,
+        country: str = "CL",
+        timezone: Optional[str] = None,
+        max_concurrent_calls: int = 5,
         features: Optional[Dict] = None,
         settings: Optional[Dict] = None
     ) -> AccountModel:
@@ -48,6 +51,9 @@ class AccountService:
             "status": AccountStatus.ACTIVE,
             "minutes_purchased": initial_minutes,
             "credit_balance": initial_credits,
+            "country": country.upper(),
+            "timezone": timezone,
+            "max_concurrent_calls": max_concurrent_calls,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }

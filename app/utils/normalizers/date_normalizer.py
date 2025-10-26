@@ -73,3 +73,31 @@ def normalize_date(value: Any) -> Optional[str]:
         pass
     
     return None
+
+
+def add_days_iso(iso_date: str, days: int) -> Optional[str]:
+    """
+    Suma días a una fecha en formato ISO
+    
+    Args:
+        iso_date: Fecha en formato ISO (YYYY-MM-DD)
+        days: Días a sumar (puede ser negativo)
+    
+    Returns:
+        Nueva fecha en formato ISO o None si hay error
+    
+    Examples:
+        >>> add_days_iso('2024-12-25', 7)
+        '2025-01-01'
+        >>> add_days_iso('2024-12-25', -5)
+        '2024-12-20'
+    """
+    if not iso_date:
+        return None
+    
+    try:
+        date_obj = datetime.fromisoformat(iso_date)
+        new_date = date_obj + timedelta(days=days)
+        return new_date.date().isoformat()
+    except (ValueError, TypeError):
+        return None

@@ -31,6 +31,39 @@ def normalize_rut(rut_raw: Any) -> Optional[str]:
     return rut_clean if rut_clean else None
 
 
+def format_rut(rut_clean: str) -> str:
+    """
+    Formatea RUT para visualización con puntos y guión
+    
+    Args:
+        rut_clean: RUT sin formato (ej: '12345678K')
+    
+    Returns:
+        RUT formateado (ej: '12.345.678-K')
+    
+    Examples:
+        >>> format_rut('12345678K')
+        '12.345.678-K'
+        >>> format_rut('9876543')
+        '987.654-3'
+    """
+    if not rut_clean or len(rut_clean) < 2:
+        return rut_clean
+    
+    # Separar número y dígito verificador
+    num = rut_clean[:-1]
+    dv = rut_clean[-1]
+    
+    # Agregar puntos cada 3 dígitos desde la derecha
+    formatted_num = ""
+    for i, digit in enumerate(reversed(num)):
+        if i > 0 and i % 3 == 0:
+            formatted_num = "." + formatted_num
+        formatted_num = digit + formatted_num
+    
+    return f"{formatted_num}-{dv}"
+
+
 def normalize_key(key: str) -> str:
     """
     Normaliza claves de columnas para búsqueda flexible

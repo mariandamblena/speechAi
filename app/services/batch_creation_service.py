@@ -21,7 +21,6 @@ class BatchCreationService:
     
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
-        self.excel_processor = ExcelDebtorProcessor()
         self.account_service = AccountService(db_manager)
     
     async def create_batch_from_excel(
@@ -60,14 +59,18 @@ class BatchCreationService:
             if not account.can_make_calls:
                 raise ValueError(f"Cuenta {account_id} no puede realizar llamadas")
             
-            # 2. Procesar archivo Excel
-            logger.info(f"Procesando archivo Excel para cuenta {account_id}")
-            excel_data = self.excel_processor.process_excel_data(file_content, account_id)
+            # 2. Crear procesador con el país de la cuenta
+            country = getattr(account, 'country', 'CL')  # Default: Chile
+            excel_processor = ExcelDebtorProcessor(country=country)
+            
+            # 3. Procesar archivo Excel
+            logger.info(f"Procesando archivo Excel para cuenta {account_id} (País: {country})")
+            excel_data = excel_processor.process_excel_data(file_content, account_id)
             
             batch_id = excel_data['batch_id']
             debtors_data = excel_data['debtors']
             
-            # 3. Verificar duplicados si no están permitidos
+            # 4. Verificar duplicados si no están permitidos
             duplicates_info = []
             if not allow_duplicates:
                 duplicates_info = await self._check_duplicates(batch_id, debtors_data, account_id)

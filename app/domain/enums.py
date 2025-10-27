@@ -8,11 +8,13 @@ from enum import Enum
 class JobStatus(Enum):
     """Estados posibles de un job"""
     PENDING = "pending"
+    SCHEDULED = "scheduled"  # Job programado para ejecutarse en el futuro
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     DONE = "done"  # Agregado para compatibilidad con call_worker
     FAILED = "failed"
     SUSPENDED = "suspended"  # Nuevo: Para jobs sin créditos
+    CANCELLED = "cancelled"  # Job cancelado (batch pausado o eliminado)
 
 
 class CallStatus(Enum):

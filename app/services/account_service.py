@@ -26,25 +26,51 @@ class AccountService:
         account_name: str,
         plan_type: PlanType = PlanType.MINUTES_BASED,
         initial_minutes: float = 0.0,
-        initial_credits: float = 0.0
+        initial_credits: float = 0.0,
+        contact_name: Optional[str] = None,
+        contact_email: Optional[str] = None,
+        contact_phone: Optional[str] = None,
+        country: str = "CL",
+        timezone: Optional[str] = None,
+        max_concurrent_calls: int = 5,
+        features: Optional[Dict] = None,
+        settings: Optional[Dict] = None
     ) -> AccountModel:
-        """Crea una nueva cuenta"""
+        """Crea una nueva cuenta con información completa"""
         
         # Verificar que no existe
         existing = await self.get_account(account_id)
         if existing:
             raise ValueError(f"Account {account_id} already exists")
         
-        account = AccountModel(
-            account_id=account_id,
-            account_name=account_name,
-            plan_type=plan_type,
-            status=AccountStatus.ACTIVE,
-            minutes_purchased=initial_minutes,
-            credit_balance=initial_credits,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
+        # Preparar datos de la cuenta
+        account_data = {
+            "account_id": account_id,
+            "account_name": account_name,
+            "plan_type": plan_type,
+            "status": AccountStatus.ACTIVE,
+            "minutes_purchased": initial_minutes,
+            "credit_balance": initial_credits,
+            "country": country.upper(),
+            "timezone": timezone,
+            "max_concurrent_calls": max_concurrent_calls,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        # Agregar campos opcionales si se proporcionan
+        if contact_name:
+            account_data["contact_name"] = contact_name
+        if contact_email:
+            account_data["contact_email"] = contact_email
+        if contact_phone:
+            account_data["contact_phone"] = contact_phone
+        if features:
+            account_data["features"] = features
+        if settings:
+            account_data["settings"] = settings
+        
+        account = AccountModel(**account_data)
         
         result = await self.accounts_collection.insert_one(account.to_dict())
         account._id = result.inserted_id

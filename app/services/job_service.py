@@ -100,15 +100,25 @@ class JobService:
         return jobs
     
     async def get_job_by_id(self, job_id: str) -> Optional[JobModel]:
-        """Obtiene un job por su ID (API method)"""
+        """Obtiene un job por su ID (API method) - acepta ObjectId o job_id"""
         
         if not self.db_manager:
             raise ValueError("db_manager is required for API methods")
         
         try:
-            doc = await self.jobs_collection.find_one({"_id": ObjectId(job_id)})
+            # Intentar primero como ObjectId
+            try:
+                doc = await self.jobs_collection.find_one({"_id": ObjectId(job_id)})
+                if doc:
+                    return JobModel.from_dict(doc)
+            except Exception:
+                pass
+            
+            # Si falla, intentar como job_id
+            doc = await self.jobs_collection.find_one({"job_id": job_id})
             if doc:
                 return JobModel.from_dict(doc)
+            
             return None
         except Exception as e:
             logger.error(f"Error getting job {job_id}: {e}")
@@ -228,6 +238,136 @@ class JobService:
             "status_breakdown": status_counts,
             "period_days": days_back
         }
+    
+    async def cancel_job(self, job_id: str) -> bool:
+        """
+        Cancela un job pendiente (API method)
+        
+        Args:
+            job_id: ID del job a cancelar (puede ser ObjectId o job_id)
+        
+        Returns:
+            True si se canceló, False si no se encontró o no se pudo cancelar
+        """
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        # Intentar cancelar por _id primero
+        try:
+            result = await self.jobs_collection.update_one(
+                {
+                    "_id": ObjectId(job_id),
+                    "status": {"$in": [
+                        JobStatus.PENDING.value,
+                        JobStatus.SCHEDULED.value,
+                        JobStatus.FAILED.value
+                    ]}
+                },
+                {
+                    "$set": {
+                        "status": JobStatus.CANCELLED.value,
+                        "updated_at": datetime.utcnow(),
+                        "cancellation_reason": "Cancelled by user"
+                    }
+                }
+            )
+            
+            if result.matched_count > 0:
+                logger.info(f"Job {job_id} cancelled")
+                return True
+        except Exception as e:
+            logger.warning(f"Could not cancel by _id: {e}")
+        
+        # Intentar por job_id si falla con _id
+        result = await self.jobs_collection.update_one(
+            {
+                "job_id": job_id,
+                "status": {"$in": [
+                    JobStatus.PENDING.value,
+                    JobStatus.SCHEDULED.value,
+                    JobStatus.FAILED.value
+                ]}
+            },
+            {
+                "$set": {
+                    "status": JobStatus.CANCELLED.value,
+                    "updated_at": datetime.utcnow(),
+                    "cancellation_reason": "Cancelled by user"
+                }
+            }
+        )
+        
+        if result.matched_count > 0:
+            logger.info(f"Job {job_id} cancelled")
+            return True
+        
+        return False
+    
+    async def retry_job(self, job_id: str) -> bool:
+        """
+        Marca un job fallido para reintento (API method)
+        
+        Args:
+            job_id: ID del job a reintentar
+        
+        Returns:
+            True si se marcó para retry, False si no se encontró o no se puede reintentar
+        """
+        if not self.db_manager:
+            raise ValueError("db_manager is required for API methods")
+        
+        # Intentar por _id primero
+        try:
+            result = await self.jobs_collection.update_one(
+                {
+                    "_id": ObjectId(job_id),
+                    "status": JobStatus.FAILED.value
+                },
+                {
+                    "$set": {
+                        "status": JobStatus.PENDING.value,
+                        "updated_at": datetime.utcnow(),
+                        "reserved_until": None,
+                        "worker_id": None
+                    },
+                    "$unset": {
+                        "last_error": "",
+                        "failed_at": ""
+                    }
+                }
+            )
+            
+            if result.matched_count > 0:
+                logger.info(f"Job {job_id} marked for retry")
+                return True
+        except Exception as e:
+            logger.warning(f"Could not retry by _id: {e}")
+        
+        # Intentar por job_id
+        result = await self.jobs_collection.update_one(
+            {
+                "job_id": job_id,
+                "status": JobStatus.FAILED.value
+            },
+            {
+                "$set": {
+                    "status": JobStatus.PENDING.value,
+                    "updated_at": datetime.utcnow(),
+                    "reserved_until": None,
+                    "worker_id": None
+                },
+                "$unset": {
+                    "last_error": "",
+                    "failed_at": ""
+                }
+            }
+        )
+        
+        if result.matched_count > 0:
+            logger.info(f"Job {job_id} marked for retry")
+            return True
+        
+        return False
     
     # ============================================================================
     # WORKER METHODS (Original functionality)

@@ -35,7 +35,8 @@ class IRetellClient(ABC):
         to_number: str,
         agent_id: str,
         from_number: Optional[str],
-        context: Dict[str, str]
+        context: Dict[str, str],
+        ring_timeout: Optional[int] = None
     ) -> RetellCallResult:
         """Crea una nueva llamada"""
         pass
@@ -78,7 +79,8 @@ class RetellApiClient(IRetellClient):
         to_number: str,
         agent_id: str,
         from_number: Optional[str],
-        context: Dict[str, str]
+        context: Dict[str, str],
+        ring_timeout: Optional[int] = None
     ) -> RetellCallResult:
         """
         Crea una llamada usando Retell v2 API
@@ -88,6 +90,7 @@ class RetellApiClient(IRetellClient):
             agent_id: ID del agente de Retell
             from_number: Número desde el cual llamar (opcional)
             context: Variables dinámicas para el LLM
+            ring_timeout: Tiempo máximo de timbre en segundos (opcional)
             
         Returns:
             RetellCallResult con el resultado de la operación
@@ -102,6 +105,9 @@ class RetellApiClient(IRetellClient):
         
         if from_number:
             payload["from_number"] = str(from_number)
+        
+        if ring_timeout is not None:
+            payload["ring_timeout"] = ring_timeout
         
         try:
             response = requests.post(
@@ -233,7 +239,8 @@ class MockRetellClient(IRetellClient):
         to_number: str,
         agent_id: str,
         from_number: Optional[str],
-        context: Dict[str, str]
+        context: Dict[str, str],
+        ring_timeout: Optional[int] = None
     ) -> RetellCallResult:
         """Simula creación de llamada"""
         self.call_counter += 1

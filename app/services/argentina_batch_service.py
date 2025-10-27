@@ -13,6 +13,7 @@ from domain.models import BatchModel, JobModel, DebtorModel, ContactInfo, CallPa
 from domain.enums import JobStatus, CallMode, AccountStatus
 from infrastructure.database_manager import DatabaseManager
 from services.account_service import AccountService
+from utils.normalizers import normalize_phone_ar, normalize_date, normalize_key
 
 logger = logging.getLogger(__name__)
 

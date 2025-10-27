@@ -21,7 +21,6 @@ class BatchCreationService:
     
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
-        self.excel_processor = ExcelDebtorProcessor()
         self.account_service = AccountService(db_manager)
     
     async def create_batch_from_excel(
@@ -32,7 +31,8 @@ class BatchCreationService:
         batch_description: str = None,
         allow_duplicates: bool = False,
         dias_fecha_limite: Optional[int] = None,
-        dias_fecha_maxima: Optional[int] = None
+        dias_fecha_maxima: Optional[int] = None,
+        call_settings: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Crea un batch completo desde archivo Excel con anti-duplicación
@@ -45,6 +45,7 @@ class BatchCreationService:
             allow_duplicates: Si permite duplicados (default: False)
             dias_fecha_limite: Días a sumar a fecha actual para fecha_limite (ej: 30)
             dias_fecha_maxima: Días a sumar a fecha actual para fecha_maxima (ej: 45)
+            call_settings: Configuración de llamadas específica para este batch
         
         Returns:
             Diccionario con resultado del procesamiento
@@ -58,14 +59,18 @@ class BatchCreationService:
             if not account.can_make_calls:
                 raise ValueError(f"Cuenta {account_id} no puede realizar llamadas")
             
-            # 2. Procesar archivo Excel
-            logger.info(f"Procesando archivo Excel para cuenta {account_id}")
-            excel_data = self.excel_processor.process_excel_data(file_content, account_id)
+            # 2. Crear procesador con el país de la cuenta
+            country = getattr(account, 'country', 'CL')  # Default: Chile
+            excel_processor = ExcelDebtorProcessor(country=country)
+            
+            # 3. Procesar archivo Excel
+            logger.info(f"Procesando archivo Excel para cuenta {account_id} (País: {country})")
+            excel_data = excel_processor.process_excel_data(file_content, account_id)
             
             batch_id = excel_data['batch_id']
             debtors_data = excel_data['debtors']
             
-            # 3. Verificar duplicados si no están permitidos
+            # 4. Verificar duplicados si no están permitidos
             duplicates_info = []
             if not allow_duplicates:
                 duplicates_info = await self._check_duplicates(batch_id, debtors_data, account_id)
@@ -82,9 +87,11 @@ class BatchCreationService:
             if not valid_debtors:
                 return {
                     'success': False,
-                    'error': 'No hay deudores válidos para procesar después de filtrar duplicados',
+                    'error': f'❌ No hay contactos válidos para procesar. Se encontraron {len(duplicates_info)} duplicados en otros batches. '
+                             f'Si deseas crear un nuevo batch con estos mismos contactos, activa la opción "Permitir Duplicados" en el frontend.',
                     'duplicates': duplicates_info,
-                    'total_processed': 0
+                    'total_processed': 0,
+                    'suggestion': 'Activa allow_duplicates=true en el request para permitir contactos que ya existen en otros batches'
                 }
             
             # 5. Crear el batch
@@ -95,6 +102,7 @@ class BatchCreationService:
                 description=batch_description or f"Importado desde Excel con {len(valid_debtors)} deudores",
                 total_jobs=len(valid_debtors),
                 pending_jobs=len(valid_debtors),
+                call_settings=call_settings,  # Agregar call_settings
                 created_at=datetime.utcnow()
             )
             

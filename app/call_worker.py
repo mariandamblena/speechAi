@@ -141,7 +141,7 @@ class RetellClient:
         }
 
     @retry(wait=wait_exponential_jitter(initial=1, max=20), stop=stop_after_attempt(3))
-    def start_call(self, *, to_number: str, agent_id: str, from_number: Optional[str], context: Dict[str, Any]) -> RetellResult:
+    def start_call(self, *, to_number: str, agent_id: str, from_number: Optional[str], context: Dict[str, Any], ring_timeout: Optional[int] = None) -> RetellResult:
         """
         Crea una llamada usando Retell v2.
         Args:
@@ -149,6 +149,7 @@ class RetellClient:
           agent_id: ID del agente Retell (el que usás en n8n)
           from_number: número origen (si tu cuenta lo requiere)
           context: variables dinámicas para el agente (mapeadas en retell_llm_dynamic_variables)
+          ring_timeout: tiempo máximo de timbre en segundos (opcional)
         """
         url = f"{self.base_url}/v2/create-phone-call"
 
@@ -159,6 +160,8 @@ class RetellClient:
         }
         if from_number:
             body["from_number"] = str(from_number)
+        if ring_timeout is not None:
+            body["ring_timeout"] = ring_timeout
 
         resp = requests.post(url, headers=self._headers(), data=json.dumps(body), timeout=30)
 
@@ -200,6 +203,9 @@ class JobStore:
         self.coll = coll
         self.db = db
         
+        # Acceso a colección de batches para verificar estado
+        self.batches_coll = db["batches"] if db is not None else None
+        
         # Check if we can update account/batch usage
         if db is not None:
             print("[DEBUG] JobStore initialized with database access for usage tracking")
@@ -210,31 +216,57 @@ class JobStore:
         """
         Reserva un job 'pending' cuyo lease esté vencido o vacío.
         NUEVO: Solo toma jobs que no tengan resultado exitoso previo.
+        NUEVO: No toma jobs de batches pausados (is_active=False).
         """
         now = utcnow()
         reservation = lease_expires_in(LEASE_SECONDS)
         
         print(f"[DEBUG] [{worker_id}] Buscando jobs pendientes...")
         print(f"[DEBUG] [{worker_id}] Timestamp actual: {now}")
-        print(f"[DEBUG] [{worker_id}] Filtro: status=pending, sin resultado exitoso, respeta delay por persona")
+        print(f"[DEBUG] [{worker_id}] Filtro: status=pending, sin resultado exitoso, respeta delay por persona, batch activo")
 
         try:
+            # Primero obtener IDs de batches activos
+            active_batch_ids = []
+            if self.batches_coll is not None:
+                active_batches_cursor = self.batches_coll.find(
+                    {"is_active": True},
+                    {"batch_id": 1}
+                )
+                active_batch_ids = [batch["batch_id"] for batch in active_batches_cursor]
+                print(f"[DEBUG] [{worker_id}] Batches activos encontrados: {len(active_batch_ids)}")
+            
+            # Construir filtro base
+            base_filter = {
+                "$or": [
+                    # Jobs pending normales
+                    {"status": "pending"},
+                    # Jobs failed listos para retry
+                    {
+                        "status": "failed",
+                        "attempts": {"$lt": MAX_TRIES},
+                        "$or": [
+                            {"next_try_at": {"$exists": False}},
+                            {"next_try_at": {"$lte": now}}
+                        ]
+                    }
+                ]
+            }
+            
+            # Agregar filtro para batches activos o jobs sin batch
+            if active_batch_ids:
+                base_filter["$and"] = [
+                    {
+                        "$or": [
+                            {"batch_id": {"$in": active_batch_ids}},  # Jobs de batches activos
+                            {"batch_id": {"$exists": False}},  # Jobs sin batch
+                            {"batch_id": None}  # Jobs con batch_id explícitamente None
+                        ]
+                    }
+                ]
+            
             doc = self.coll.find_one_and_update(
-                filter={
-                    "$or": [
-                        # Jobs pending normales
-                        {"status": "pending"},
-                        # Jobs failed listos para retry
-                        {
-                            "status": "failed",
-                            "attempts": {"$lt": MAX_TRIES},
-                            "$or": [
-                                {"next_try_at": {"$exists": False}},
-                                {"next_try_at": {"$lte": now}}
-                            ]
-                        }
-                    ]
-                },
+                filter=base_filter,
                 update={
                     "$set": {
                         "status": "in_progress",
@@ -523,11 +555,19 @@ class JobStore:
             print(f"[ERROR] [{job_id}] Failed to update account/batch usage: {e}")
             logging.error(f"Account/batch update error for job {job_id}: {e}")
 
-    def mark_failed(self, job_id, reason: str, terminal=False):
+    def mark_failed(self, job_id, reason: str, terminal=False, call_settings: dict = None):
+        """
+        Marca un job como fallido.
+        
+        Args:
+            job_id: ID del job
+            reason: Razón del fallo
+            terminal: Si True, el job no se reintentará
+            call_settings: Configuración del batch (para retry_delay_hours)
+        """
         new_status = "failed" if terminal else "pending"
         reserved_until = None if terminal else lease_expires_in(int(LEASE_SECONDS * 1.5))
         
-        # NUEVO: Si es terminal, también programar delay por persona
         update_fields = {
             "status": new_status,
             "last_error": reason,
@@ -537,8 +577,17 @@ class JobStore:
         
         # Si no es terminal, programar reintento con delay
         if not terminal:
-            next_try = utcnow() + dt.timedelta(minutes=RETRY_DELAY_MINUTES)
+            # Usar retry_delay_hours del batch o el default global
+            retry_delay_hours = RETRY_DELAY_MINUTES / 60  # Default en horas
+            if call_settings and "retry_delay_hours" in call_settings:
+                retry_delay_hours = call_settings["retry_delay_hours"]
+                print(f"[DEBUG] [{job_id}] Usando retry_delay_hours del batch: {retry_delay_hours}h")
+            else:
+                print(f"[DEBUG] [{job_id}] Usando retry_delay_hours default: {retry_delay_hours}h")
+            
+            next_try = utcnow() + dt.timedelta(hours=retry_delay_hours)
             update_fields["next_try_at"] = next_try
+            print(f"[DEBUG] [{job_id}] Próximo reintento programado para: {next_try.isoformat()}Z")
             
         try:
             self.coll.update_one({"_id": job_id}, {"$set": update_fields})
@@ -552,6 +601,170 @@ class CallOrchestrator:
     def __init__(self, job_store: JobStore, retell: RetellClient):
         self.job_store = job_store
         self.retell = retell
+        self.batch_cache = {}  # Cache de batches {batch_id: (batch_data, timestamp)}
+        self.cache_ttl = 300  # TTL de 5 minutos
+        self.batches_collection = db["batches"]  # Colección de batches
+    
+    def _get_batch(self, batch_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene un batch de MongoDB con cache
+        
+        Args:
+            batch_id: ID del batch
+        
+        Returns:
+            Diccionario con datos del batch o None si no existe
+        """
+        if not batch_id:
+            return None
+        
+        # Verificar cache
+        if batch_id in self.batch_cache:
+            cached_batch, cached_at = self.batch_cache[batch_id]
+            age = (utcnow() - cached_at).total_seconds()
+            if age < self.cache_ttl:
+                logging.debug(f"Cache hit para batch {batch_id} (age: {age:.1f}s)")
+                return cached_batch
+        
+        # Cache miss o expirado - obtener de MongoDB
+        try:
+            batch = self.batches_collection.find_one({"batch_id": batch_id})
+            if batch:
+                self.batch_cache[batch_id] = (batch, utcnow())
+                logging.debug(f"Batch {batch_id} cargado de MongoDB y cacheado")
+            else:
+                logging.warning(f"Batch {batch_id} no encontrado en MongoDB")
+            return batch
+        except Exception as e:
+            logging.error(f"Error obteniendo batch {batch_id}: {e}")
+            return None
+    
+    def _is_allowed_time(self, call_settings: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """
+        Verifica si el momento actual está dentro de los horarios permitidos
+        
+        Args:
+            call_settings: Configuración del batch con allowed_hours, days_of_week, timezone
+        
+        Returns:
+            Tupla (is_allowed, reason) donde:
+            - is_allowed: True si está permitido llamar ahora
+            - reason: Razón de rechazo si is_allowed es False
+        """
+        if not call_settings:
+            return True, None
+        
+        # Obtener timezone del batch
+        tz_str = call_settings.get("timezone", "America/Santiago")
+        
+        try:
+            import pytz
+            tz = pytz.timezone(tz_str)
+        except:
+            logging.warning(f"Timezone inválido: {tz_str}, usando America/Santiago")
+            import pytz
+            tz = pytz.timezone("America/Santiago")
+        
+        # Obtener hora actual en la timezone del batch
+        from datetime import datetime
+        now = datetime.now(tz)
+        
+        # 1. Validar día de la semana
+        days_of_week = call_settings.get("days_of_week")
+        if days_of_week:
+            current_day = now.isoweekday()  # 1=Lunes, 7=Domingo
+            
+            if current_day not in days_of_week:
+                reason = f"Día {current_day} ({now.strftime('%A')}) no está en días permitidos {days_of_week}"
+                logging.info(f"Fuera de horario: {reason}")
+                return False, reason
+        
+        # 2. Validar hora del día
+        allowed_hours = call_settings.get("allowed_hours", {})
+        if not allowed_hours:
+            return True, None  # Sin restricciones de hora
+        
+        start_time = allowed_hours.get("start", "00:00")
+        end_time = allowed_hours.get("end", "23:59")
+        
+        # Parsear horas (formato HH:MM)
+        try:
+            start_hour, start_min = map(int, start_time.split(":"))
+            end_hour, end_min = map(int, end_time.split(":"))
+            
+            current_minutes = now.hour * 60 + now.minute
+            start_minutes = start_hour * 60 + start_min
+            end_minutes = end_hour * 60 + end_min
+            
+            if not (start_minutes <= current_minutes <= end_minutes):
+                reason = (
+                    f"Hora actual {now.strftime('%H:%M')} fuera del rango "
+                    f"permitido {start_time}-{end_time}"
+                )
+                logging.info(f"Fuera de horario: {reason}")
+                return False, reason
+        except Exception as e:
+            logging.error(f"Error parseando horarios {start_time}-{end_time}: {e}")
+            return True, None  # En caso de error, permitir la llamada
+        
+        return True, None
+    
+    def _calculate_next_allowed_time(self, call_settings: Dict[str, Any]) -> dt.datetime:
+        """
+        Calcula la próxima hora permitida para llamar
+        
+        Args:
+            call_settings: Configuración del batch
+        
+        Returns:
+            Datetime de la próxima hora permitida (UTC)
+        """
+        if not call_settings:
+            return utcnow() + dt.timedelta(hours=1)  # Default: 1 hora
+        
+        # Obtener timezone del batch
+        tz_str = call_settings.get("timezone", "America/Santiago")
+        
+        try:
+            import pytz
+            tz = pytz.timezone(tz_str)
+        except:
+            import pytz
+            tz = pytz.timezone("America/Santiago")
+        
+        from datetime import datetime
+        now = datetime.now(tz)
+        
+        # Obtener hora de inicio permitida
+        allowed_hours = call_settings.get("allowed_hours", {})
+        start_time = allowed_hours.get("start", "09:00")
+        
+        try:
+            start_hour, start_min = map(int, start_time.split(":"))
+        except:
+            start_hour, start_min = 9, 0  # Default 09:00
+        
+        # Calcular próximo horario permitido
+        next_allowed = now.replace(hour=start_hour, minute=start_min, second=0, microsecond=0)
+        
+        # Si ya pasó la hora de inicio hoy, programar para mañana
+        if next_allowed <= now:
+            next_allowed += dt.timedelta(days=1)
+        
+        # Verificar días de la semana
+        days_of_week = call_settings.get("days_of_week")
+        if days_of_week:
+            max_attempts = 7  # Buscar hasta 7 días en el futuro
+            for _ in range(max_attempts):
+                if next_allowed.isoweekday() in days_of_week:
+                    break
+                next_allowed += dt.timedelta(days=1)
+        
+        # Convertir a UTC para MongoDB
+        next_allowed_utc = next_allowed.astimezone(pytz.UTC).replace(tzinfo=None)
+        
+        logging.info(f"Próximo horario permitido: {next_allowed_utc.isoformat()}Z")
+        return next_allowed_utc
 
     def _pick_next_phone(self, job: Dict[str, Any]) -> Optional[str]:
         # Adaptado para la estructura real con contact.phones y next_phone_index
@@ -581,7 +794,14 @@ class CallOrchestrator:
         print(f"[DEBUG] [{job_id}] ✅ Usando teléfono: {phone} (índice {next_phone_index})")
         return phone
 
-    def _advance_phone(self, job):
+    def _advance_phone(self, job, call_settings: dict = None):
+        """
+        Avanzar al siguiente teléfono en la lista.
+        
+        Args:
+            job: Job actual
+            call_settings: Configuración del batch (para retry_delay_hours)
+        """
         # Avanzar al siguiente teléfono en la lista
         contact = job.get('contact', {})
         phones = contact.get('phones', [])
@@ -625,7 +845,7 @@ class CallOrchestrator:
             except Exception as e:
                 logging.warning(f"Error reseteando next_phone_index: {e}")
             
-            self.job_store.mark_failed(job["_id"], "No quedan teléfonos por intentar", terminal=False)
+            self.job_store.mark_failed(job["_id"], "No quedan teléfonos por intentar", terminal=False, call_settings=call_settings)
 
     def _context_from_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -729,6 +949,62 @@ class CallOrchestrator:
             self.job_store.mark_done(job_id, call_result.get('details', {}))
             return
         
+        # 🔥 OBTENER CALL_SETTINGS DEL BATCH (NUEVA FUNCIONALIDAD)
+        batch_id = job.get('batch_id')
+        batch = None
+        call_settings = {}
+        
+        if batch_id:
+            print(f"[DEBUG] [{job_id}] Obteniendo configuración del batch {batch_id}...")
+            batch = self._get_batch(batch_id)
+            if batch:
+                call_settings = batch.get('call_settings', {})
+                if call_settings:
+                    print(f"[DEBUG] [{job_id}] ✅ Call settings encontrados: {call_settings}")
+                else:
+                    print(f"[DEBUG] [{job_id}] ⚠️ Batch sin call_settings, usando defaults")
+            else:
+                print(f"[WARNING] [{job_id}] Batch {batch_id} no encontrado, usando defaults")
+        else:
+            print(f"[DEBUG] [{job_id}] Job sin batch_id, usando configuración global")
+        
+        # 🕐 VALIDAR HORARIOS PERMITIDOS
+        if call_settings:
+            is_allowed, reason = self._is_allowed_time(call_settings)
+            if not is_allowed:
+                print(f"[INFO] [{job_id}] 🚫 FUERA DE HORARIO PERMITIDO - {reason}")
+                # Calcular próximo horario permitido y reprogramar
+                next_allowed_time = self._calculate_next_allowed_time(call_settings)
+                try:
+                    self.job_store.coll.update_one(
+                        {"_id": job_id},
+                        {
+                            "$set": {
+                                "status": "pending",
+                                "reserved_until": next_allowed_time,
+                                "last_error": f"Fuera de horario: {reason}",
+                                "updated_at": utcnow()
+                            }
+                        }
+                    )
+                    print(f"[DEBUG] [{job_id}] Job reprogramado para {next_allowed_time.isoformat()}Z")
+                except Exception as e:
+                    logging.error(f"Error reprogramando job {job_id}: {e}")
+                return
+            else:
+                print(f"[DEBUG] [{job_id}] ✅ Dentro de horario permitido")
+        
+        # 🔄 VALIDAR MAX_ATTEMPTS DEL BATCH
+        max_attempts = call_settings.get("max_attempts", MAX_TRIES)
+        current_tries = job.get("tries", 0)
+        
+        print(f"[DEBUG] [{job_id}] Intentos: {current_tries}/{max_attempts}")
+        
+        if current_tries >= max_attempts:
+            print(f"[ERROR] [{job_id}] 🚫 MÁXIMO DE INTENTOS ALCANZADO ({current_tries}/{max_attempts})")
+            self.job_store.mark_failed(job_id, f"Máximo de intentos alcanzado ({max_attempts})", terminal=True)
+            return
+        
         # 🔥 VALIDACIÓN DE BALANCE - CRÍTICA PARA SAAS
         account_id = job.get('account_id')
         if account_id:
@@ -802,11 +1078,17 @@ class CallOrchestrator:
         print(f"[DEBUG] [{job_id}] Iniciando llamada a Retell...")
         print(f"[DEBUG] [{job_id}] Parámetros: phone={phone}, agent_id={RETELL_AGENT_ID}, from_number={CALL_FROM_NUMBER}")
         
+        # Usar ring_timeout del batch si está disponible
+        ring_timeout = call_settings.get("ring_timeout") if call_settings else None
+        if ring_timeout:
+            print(f"[DEBUG] [{job_id}] Usando ring_timeout del batch: {ring_timeout}s")
+        
         res = self.retell.start_call(
             to_number=phone,
             agent_id=RETELL_AGENT_ID,
             from_number=CALL_FROM_NUMBER,
-            context=context
+            context=context,
+            ring_timeout=ring_timeout
         )
 
         print(f"[DEBUG] [{job_id}] Resultado Retell: success={res.success}, error={res.error}")
@@ -816,7 +1098,7 @@ class CallOrchestrator:
             err = res.error or "Retell start_call error"
             print(f"[ERROR] [{job_id}] Error al iniciar llamada: {err}")
             logging.warning(f"[{job_id}] Error al iniciar llamada: {err}")
-            self._advance_phone(job)
+            self._advance_phone(job, call_settings)
             return
 
         call_id = res.call_id or "unknown"
@@ -827,8 +1109,9 @@ class CallOrchestrator:
         
         logging.info(f"[{job_id}] Call creada en Retell (call_id={call_id}). Iniciando seguimiento...")
         
-        # NUEVO: Seguimiento completo como workflow n8n
-        final_result = self._poll_call_until_completion(job_id, call_id)
+        # NUEVO: Seguimiento completo como workflow n8n con max_call_duration del batch
+        max_call_duration = call_settings.get("max_call_duration") if call_settings else None
+        final_result = self._poll_call_until_completion(job_id, call_id, max_call_duration)
         
         if final_result:
             # Determinar si es exitoso según el status
@@ -842,19 +1125,31 @@ class CallOrchestrator:
                 logging.info(f"[{job_id}] ✅ Llamada completada exitosamente")
             else:
                 logging.info(f"[{job_id}] ❌ Llamada falló (status={status}), se reintentará según configuración")
-                self._advance_phone(job)
+                self._advance_phone(job, call_settings)
         else:
             # Timeout o error en el seguimiento
             logging.warning(f"[{job_id}] Timeout en seguimiento de llamada")
-            self.job_store.mark_failed(job_id, "Timeout en seguimiento de llamada", terminal=False)
+            self.job_store.mark_failed(job_id, "Timeout en seguimiento de llamada", terminal=False, call_settings=call_settings)
 
-    def _poll_call_until_completion(self, job_id, call_id: str) -> Optional[Dict[str, Any]]:
+    def _poll_call_until_completion(self, job_id, call_id: str, max_call_duration: int = None) -> Optional[Dict[str, Any]]:
         """
         NUEVO: Hace pooling como el workflow de n8n hasta que la llamada termine
+        
+        Args:
+            job_id: ID del job
+            call_id: ID de la llamada en Retell
+            max_call_duration: Duración máxima en segundos (del batch o default)
         """
         print(f"[DEBUG] [{job_id}] Iniciando pooling para call_id: {call_id}")
         
-        max_duration_seconds = CALL_MAX_DURATION_MINUTES * 60
+        # Usar max_call_duration del batch o el default global
+        if max_call_duration is None:
+            max_call_duration = CALL_MAX_DURATION_MINUTES * 60
+            print(f"[DEBUG] [{job_id}] Usando max_call_duration default: {max_call_duration}s")
+        else:
+            print(f"[DEBUG] [{job_id}] Usando max_call_duration del batch: {max_call_duration}s")
+        
+        max_duration_seconds = max_call_duration
         start_time = time.time()
         
         # Espera inicial (como en workflow n8n)

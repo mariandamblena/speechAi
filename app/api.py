@@ -10,6 +10,7 @@ from datetime import datetime
 import logging
 import csv
 import io
+import uuid
 from pydantic import BaseModel
 
 from domain.models import JobModel, AccountModel, BatchModel, ContactInfo, CallPayload
@@ -30,11 +31,19 @@ from utils.helpers import serialize_objectid
 # ============================================================================
 
 class CreateAccountRequest(BaseModel):
-    account_id: str
+    """Request para crear una nueva cuenta - alineado con frontend"""
     account_name: str
-    plan_type: str = "minutes_based"
-    initial_minutes: float = 0.0
-    initial_credits: float = 0.0
+    contact_name: str
+    contact_email: str
+    contact_phone: Optional[str] = None
+    plan_type: str = "credit_based"  # "credit_based" o "minutes_based"
+    initial_minutes: Optional[float] = None
+    initial_credits: Optional[float] = None
+    country: str = "CL"  # Código ISO del país: CL (Chile), AR (Argentina)
+    timezone: Optional[str] = None  # Ej: "America/Santiago", "America/Argentina/Buenos_Aires"
+    max_concurrent_calls: Optional[int] = 5  # Límite de llamadas concurrentes
+    features: Optional[Dict[str, Any]] = None  # Otras características opcionales
+    settings: Optional[Dict[str, Any]] = None  # Configuraciones adicionales
 
 class TopupRequest(BaseModel):
     minutes: Optional[float] = None
@@ -45,6 +54,12 @@ class CreateBatchRequest(BaseModel):
     name: str
     description: str = ""
     priority: int = 1
+    call_settings: Optional[Dict[str, Any]] = None  # Configuración de llamadas específica del batch
+    # call_settings puede contener:
+    # - allowed_call_hours: {"start": "09:00", "end": "18:00"}
+    # - timezone: "America/Santiago"
+    # - retry_settings: {"max_attempts": 3, "retry_delay_hours": 24}
+    # - max_concurrent_calls: número de llamadas concurrentes para este batch
 
 class CreateJobRequest(BaseModel):
     job_id: str
@@ -60,6 +75,13 @@ class ExcelBatchRequest(BaseModel):
     batch_name: Optional[str] = None
     batch_description: Optional[str] = None
     allow_duplicates: bool = False
+
+class UpdateBatchRequest(BaseModel):
+    """Request para actualizar un batch"""
+    is_active: Optional[bool] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[int] = None
 
 # ============================================================================
 # CONFIGURACIÓN Y STARTUP
@@ -195,18 +217,45 @@ async def create_account(
 ):
     """Crear una nueva cuenta"""
     try:
+        # Generar account_id automáticamente
+        import uuid
+        account_id = f"acc-{uuid.uuid4().hex[:12]}"
+        
+        # Convertir plan_type a enum
         plan_enum = PlanType(request.plan_type)
+        
+        # Determinar créditos/minutos iniciales según el plan
+        initial_minutes = request.initial_minutes or 0.0
+        initial_credits = request.initial_credits or 0.0
+        
+        if plan_enum == PlanType.MINUTES_BASED and request.initial_minutes:
+            initial_minutes = request.initial_minutes
+        elif plan_enum == PlanType.CREDIT_BASED and request.initial_credits:
+            initial_credits = request.initial_credits
+        
+        # Crear cuenta con el nuevo modelo
         account = await service.create_account(
-            request.account_id, 
-            request.account_name, 
-            plan_enum, 
-            request.initial_minutes, 
-            request.initial_credits
+            account_id=account_id,
+            account_name=request.account_name,
+            plan_type=plan_enum,
+            initial_minutes=initial_minutes,
+            initial_credits=initial_credits,
+            contact_name=request.contact_name,
+            contact_email=request.contact_email,
+            contact_phone=request.contact_phone,
+            country=request.country,
+            timezone=request.timezone,
+            max_concurrent_calls=request.max_concurrent_calls,
+            features=request.features,
+            settings=request.settings
         )
+        
         return {"success": True, "account": serialize_objectid(account.to_dict())}
     except ValueError as e:
+        logger.error(f"Validation error creating account: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error creating account: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/accounts/{account_id}")
@@ -291,6 +340,49 @@ async def activate_account(
     
     return {"success": True, "message": "Account activated"}
 
+@app.get("/api/v1/accounts/{account_id}/last-call-settings")
+async def get_last_call_settings(
+    account_id: str
+):
+    """
+    Obtener la última configuración de call_settings utilizada por esta cuenta.
+    Útil para pre-llenar el formulario de configuración en el frontend.
+    
+    Returns:
+        - call_settings: Última configuración utilizada
+        - from_batch: ID del batch del que se obtuvo la configuración
+        - created_at: Fecha de creación de ese batch
+    """
+    try:
+        # Buscar el último batch de esta cuenta que tenga call_settings
+        batches_coll = db_manager.batches
+        
+        last_batch = await batches_coll.find_one(
+            {
+                "account_id": account_id,
+                "call_settings": {"$exists": True, "$ne": None}
+            },
+            sort=[("created_at", -1)]  # Más reciente primero
+        )
+        
+        if not last_batch:
+            return {
+                "success": False,
+                "message": "No previous call_settings found for this account",
+                "call_settings": None
+            }
+        
+        return {
+            "success": True,
+            "call_settings": last_batch.get("call_settings"),
+            "from_batch": last_batch.get("batch_id"),
+            "created_at": last_batch.get("created_at").isoformat() if last_batch.get("created_at") else None
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting last call_settings: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error obtaining call settings: {str(e)}")
+
 
 # ============================================================================
 # ENDPOINTS - BATCH MANAGEMENT
@@ -301,13 +393,14 @@ async def create_batch(
     request: CreateBatchRequest,
     service: BatchService = Depends(get_batch_service)
 ):
-    """Crear un nuevo batch"""
+    """Crear un nuevo batch con configuración de llamadas opcional"""
     try:
         batch = await service.create_batch(
             request.account_id, 
             request.name, 
             request.description, 
-            request.priority
+            request.priority,
+            request.call_settings  # Pasar call_settings al servicio
         )
         return {"success": True, "batch": serialize_objectid(batch.to_dict())}
     except Exception as e:
@@ -348,6 +441,37 @@ async def get_batch_summary(
         raise HTTPException(status_code=404, detail=summary["error"])
     
     return summary
+
+@app.get("/api/v1/batches/{batch_id}/status")
+async def get_batch_status(
+    batch_id: str,
+    service: BatchService = Depends(get_batch_service)
+):
+    """
+    Obtener estado en tiempo real del batch (optimizado para polling frecuente)
+    
+    Este endpoint está optimizado para ser llamado frecuentemente (cada 5 segundos)
+    por el frontend. Solo retorna los campos esenciales para actualización de UI.
+    """
+    batch = await service.get_batch(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    
+    # Retornar solo campos esenciales para minimizar payload
+    return {
+        "batch_id": batch.batch_id,
+        "is_active": batch.is_active,
+        "total_jobs": batch.total_jobs,
+        "pending_jobs": batch.pending_jobs,
+        "completed_jobs": batch.completed_jobs,
+        "failed_jobs": batch.failed_jobs,
+        "suspended_jobs": batch.suspended_jobs,
+        "total_cost": batch.total_cost,
+        "total_minutes": batch.total_minutes,
+        "progress_percentage": round((batch.completed_jobs / batch.total_jobs * 100) if batch.total_jobs > 0 else 0, 2),
+        "started_at": batch.started_at.isoformat() if batch.started_at else None,
+        "completed_at": batch.completed_at.isoformat() if batch.completed_at else None
+    }
 
 @app.post("/api/v1/batches/{batch_id}/upload")
 async def upload_jobs_to_batch(
@@ -441,6 +565,77 @@ async def resume_batch(
     
     return {"success": True, "message": "Batch resumed"}
 
+@app.post("/api/v1/batches/{batch_id}/cancel")
+async def cancel_batch(
+    batch_id: str,
+    reason: Optional[str] = Query(None, description="Razón de cancelación"),
+    service: BatchService = Depends(get_batch_service)
+):
+    """
+    Cancelar un batch completamente (diferente de pause)
+    
+    Diferencias entre pause y cancel:
+    - pause: Detiene temporalmente, se puede reanudar
+    - cancel: Detiene permanentemente, marca jobs como cancelados
+    
+    Args:
+        batch_id: ID del batch a cancelar
+        reason: Razón opcional de la cancelación
+    """
+    success = await service.cancel_batch(batch_id, reason)
+    if not success:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    
+    return {
+        "success": True, 
+        "message": "Batch cancelled successfully",
+        "reason": reason
+    }
+
+@app.patch("/api/v1/batches/{batch_id}")
+async def update_batch(
+    batch_id: str,
+    request: UpdateBatchRequest,
+    service: BatchService = Depends(get_batch_service)
+):
+    """
+    Actualizar propiedades de un batch (incluyendo pausar/reanudar)
+    
+    Args:
+        batch_id: ID del batch a actualizar (puede ser batch_id o _id de MongoDB)
+        request: Datos a actualizar (is_active, name, description, priority)
+    """
+    update_data = {}
+    
+    if request.is_active is not None:
+        update_data["is_active"] = request.is_active
+    if request.name is not None:
+        update_data["name"] = request.name
+    if request.description is not None:
+        update_data["description"] = request.description
+    if request.priority is not None:
+        update_data["priority"] = request.priority
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    # Intentar actualizar por batch_id o por _id
+    success = await service.update_batch(batch_id, update_data)
+    if not success:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    
+    # Determinar mensaje según la acción
+    message = "Batch updated successfully"
+    if request.is_active is not None:
+        message = "Batch resumed" if request.is_active else "Batch paused"
+    
+    return {
+        "success": True, 
+        "message": message,
+        "batch_id": batch_id,
+        "updated_fields": list(update_data.keys())
+    }
+
 @app.delete("/api/v1/batches/{batch_id}")
 async def delete_batch(
     batch_id: str,
@@ -497,13 +692,14 @@ async def preview_excel_batch(
 @app.post("/api/v1/batches/excel/create")
 async def create_batch_from_excel(
     file: UploadFile = File(...),
-    account_id: str = Query(..., description="ID de la cuenta"),
-    batch_name: Optional[str] = Query(None, description="Nombre del batch"),
-    batch_description: Optional[str] = Query(None, description="Descripción del batch"),
-    allow_duplicates: bool = Query(False, description="Permitir duplicados"),
-    processing_type: str = Query("basic", description="Tipo de procesamiento: 'basic' o 'acquisition'"),
-    dias_fecha_limite: Optional[int] = Query(None, description="Días a agregar a fecha actual para calcular fecha_limite (ej: 30)"),
-    dias_fecha_maxima: Optional[int] = Query(None, description="Días a agregar a fecha actual para calcular fecha_maxima (ej: 45)"),
+    account_id: str = Form(..., description="ID de la cuenta"),
+    batch_name: Optional[str] = Form(None, description="Nombre del batch"),
+    batch_description: Optional[str] = Form(None, description="Descripción del batch"),
+    allow_duplicates: bool = Form(False, description="Permitir duplicados"),
+    processing_type: str = Form("basic", description="Tipo de procesamiento: 'basic' o 'acquisition'"),
+    dias_fecha_limite: Optional[int] = Form(None, description="Días a agregar a fecha actual para calcular fecha_limite (ej: 30)"),
+    dias_fecha_maxima: Optional[int] = Form(None, description="Días a agregar a fecha actual para calcular fecha_maxima (ej: 45)"),
+    call_settings_json: Optional[str] = Form(None, description="JSON string con configuración de llamadas para este batch"),
     basic_service: BatchCreationService = Depends(get_batch_creation_service),
     chile_service: ChileBatchService = Depends(get_chile_batch_service)
 ):
@@ -519,8 +715,30 @@ async def create_batch_from_excel(
     - dias_fecha_limite: Calcula fecha_limite = HOY + N días (ej: 30 días)
     - dias_fecha_maxima: Calcula fecha_maxima = HOY + N días (ej: 45 días)
     - Si no se especifican, se usan las fechas del Excel
+    
+    Configuración de llamadas (opcional):
+    - call_settings_json: JSON string con configuración específica del batch, ej:
+      '{"allowed_call_hours": {"start": "09:00", "end": "20:00"}, "timezone": "America/Santiago", "retry_settings": {"max_attempts": 5, "retry_delay_hours": 12}, "max_concurrent_calls": 10}'
     """
     try:
+        # Log para debugging
+        logger.info(f"📥 Recibiendo request para crear batch desde Excel")
+        logger.info(f"   - account_id: '{account_id}'")
+        logger.info(f"   - batch_name: '{batch_name}'")
+        logger.info(f"   - processing_type: '{processing_type}'")
+        logger.info(f"   - allow_duplicates: {allow_duplicates}")
+        logger.info(f"   - file: {file.filename}")
+        logger.info(f"   - dias_fecha_limite: {dias_fecha_limite}")
+        logger.info(f"   - dias_fecha_maxima: {dias_fecha_maxima}")
+        logger.info(f"   - call_settings_json: {call_settings_json[:100] if call_settings_json else 'None'}...")
+        
+        # Validar account_id
+        if not account_id or account_id.lower() == "string" or account_id == "undefined":
+            raise HTTPException(
+                status_code=400, 
+                detail=f"❌ account_id inválido: '{account_id}'. Debe ser un ID válido como 'acc-a1b2c3d4e5f6'. El frontend debe enviar el ID real de la cuenta seleccionada."
+            )
+        
         # Verificar tipo de archivo
         if not file.filename.endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="Solo se permiten archivos Excel (.xlsx, .xls)")
@@ -531,6 +749,18 @@ async def create_batch_from_excel(
                 status_code=400, 
                 detail="processing_type debe ser 'basic' o 'acquisition'"
             )
+        
+        # Parsear call_settings si se proporciona
+        call_settings = None
+        if call_settings_json:
+            import json
+            try:
+                call_settings = json.loads(call_settings_json)
+            except json.JSONDecodeError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"call_settings_json debe ser un JSON válido: {str(e)}"
+                )
         
         # Leer contenido del archivo
         content = await file.read()
@@ -545,7 +775,8 @@ async def create_batch_from_excel(
                 batch_description=batch_description,
                 allow_duplicates=allow_duplicates,
                 dias_fecha_limite=dias_fecha_limite,
-                dias_fecha_maxima=dias_fecha_maxima
+                dias_fecha_maxima=dias_fecha_maxima,
+                call_settings=call_settings
             )
         else:
             # Usar lógica básica (por defecto)
@@ -556,7 +787,8 @@ async def create_batch_from_excel(
                 batch_description=batch_description,
                 allow_duplicates=allow_duplicates,
                 dias_fecha_limite=dias_fecha_limite,
-                dias_fecha_maxima=dias_fecha_maxima
+                dias_fecha_maxima=dias_fecha_maxima,
+                call_settings=call_settings
             )
         
         if not result['success']:
@@ -629,7 +861,7 @@ async def get_job(
     service: JobService = Depends(get_job_service)
 ):
     """Obtener información de un job específico"""
-    job = await service.get_job(job_id)
+    job = await service.get_job_by_id(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
@@ -702,6 +934,126 @@ async def get_dashboard_stats(
         }
     
     return stats
+
+@app.get("/api/v1/dashboard/overview")
+async def get_dashboard_overview(
+    account_id: Optional[str] = Query(None, description="Filtrar por cuenta específica"),
+    batch_service: BatchService = Depends(get_batch_service),
+    job_service: JobService = Depends(get_job_service),
+    account_service: AccountService = Depends(get_account_service)
+):
+    """
+    Obtener overview del dashboard con métricas principales
+    
+    Diseñado específicamente para el frontend dashboard que muestra:
+    - Jobs Hoy
+    - Tasa de Éxito %
+    - Lotes Activos
+    - Jobs Pendientes
+    """
+    try:
+        # Fecha de hoy (inicio del día)
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Filtros opcionales por cuenta
+        batch_filter = {"account_id": account_id} if account_id else {}
+        job_filter = {"account_id": account_id} if account_id else {}
+        
+        # 1. Obtener lotes activos
+        active_batches = await batch_service.list_batches(
+            account_id=account_id,
+            is_active=True,
+            limit=1000
+        )
+        
+        # 2. Estadísticas de jobs (agregación en MongoDB para performance)
+        jobs_pipeline = [
+            {"$match": job_filter},
+            {"$facet": {
+                "today_jobs": [
+                    {"$match": {"created_at": {"$gte": today_start}}},
+                    {"$count": "count"}
+                ],
+                "pending_jobs": [
+                    {"$match": {"status": JobStatus.PENDING.value}},
+                    {"$count": "count"}
+                ],
+                "completed_jobs": [
+                    {"$match": {"status": JobStatus.COMPLETED.value}},
+                    {"$count": "count"}
+                ],
+                "failed_jobs": [
+                    {"$match": {"status": JobStatus.FAILED.value}},
+                    {"$count": "count"}
+                ]
+            }}
+        ]
+        
+        jobs_stats_cursor = job_service.jobs_collection.aggregate(jobs_pipeline)
+        jobs_stats_result = await jobs_stats_cursor.to_list(length=1)
+        
+        # Parsear resultados
+        jobs_stats = jobs_stats_result[0] if jobs_stats_result else {}
+        
+        jobs_today = jobs_stats.get("today_jobs", [{}])[0].get("count", 0)
+        pending_jobs = jobs_stats.get("pending_jobs", [{}])[0].get("count", 0)
+        completed_jobs = jobs_stats.get("completed_jobs", [{}])[0].get("count", 0)
+        failed_jobs = jobs_stats.get("failed_jobs", [{}])[0].get("count", 0)
+        
+        # 3. Calcular tasa de éxito
+        total_finished = completed_jobs + failed_jobs
+        success_rate = round((completed_jobs / total_finished * 100) if total_finished > 0 else 0, 2)
+        
+        # 4. Calcular totales de batches
+        total_jobs_in_batches = sum(batch.total_jobs for batch in active_batches)
+        total_cost_in_batches = sum(batch.total_cost for batch in active_batches)
+        total_minutes_in_batches = sum(batch.total_minutes for batch in active_batches)
+        
+        # 5. Información de cuenta (si se filtró)
+        account_info = None
+        if account_id:
+            account = await account_service.get_account(account_id)
+            if account:
+                account_info = {
+                    "account_id": account.account_id,
+                    "name": account.name,
+                    "status": account.status.value,
+                    "balance": account.balance,
+                    "billing_type": account.billing_type.value
+                }
+        
+        return {
+            "success": True,
+            "timestamp": datetime.utcnow().isoformat(),
+            "account": account_info,
+            "metrics": {
+                "jobs_today": jobs_today,
+                "success_rate_percentage": success_rate,
+                "active_batches": len(active_batches),
+                "pending_jobs": pending_jobs
+            },
+            "detailed_stats": {
+                "jobs": {
+                    "today": jobs_today,
+                    "pending": pending_jobs,
+                    "completed": completed_jobs,
+                    "failed": failed_jobs,
+                    "total_finished": total_finished
+                },
+                "batches": {
+                    "active_count": len(active_batches),
+                    "total_jobs": total_jobs_in_batches,
+                    "total_cost": round(total_cost_in_batches, 2),
+                    "total_minutes": round(total_minutes_in_batches, 2)
+                }
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching dashboard overview: {str(e)}"
+        )
 
 @app.get("/api/v1/calls/history")
 async def get_call_history(
@@ -987,11 +1339,20 @@ async def get_batch_jobs(
     status: Optional[str] = Query(None),
     limit: int = Query(100, le=1000),
     skip: int = Query(0, ge=0),
-    service: JobService = Depends(get_job_service)
+    batch_service: BatchService = Depends(get_batch_service),
+    job_service: JobService = Depends(get_job_service)
 ):
     """Obtener jobs de un batch específico"""
     try:
         from domain.enums import JobStatus
+        
+        # Primero obtener el batch para conseguir el batch_id real
+        batch = await batch_service.get_batch(batch_id)
+        if not batch:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        
+        # Usar el batch_id personalizado para buscar jobs
+        actual_batch_id = batch.batch_id
         
         status_enum = None
         if status:
@@ -1000,19 +1361,12 @@ async def get_batch_jobs(
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
         
-        jobs = await service.list_jobs(
-            batch_id=batch_id,
+        jobs = await job_service.list_jobs(
+            batch_id=actual_batch_id,
             status=status_enum,
             limit=limit,
             skip=skip
         )
-        
-        if not jobs and skip == 0:
-            # Verificar que el batch existe
-            batch_service = await get_batch_service()
-            batch = await batch_service.get_batch(batch_id)
-            if not batch:
-                raise HTTPException(status_code=404, detail="Batch not found")
         
         return [serialize_objectid(job.to_dict()) for job in jobs]
         

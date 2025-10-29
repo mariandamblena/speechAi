@@ -1,9 +1,90 @@
-# 🤖 SpeechAI Backend - Sistema de Llamadas### ✅ **Integraciones**
+# 🤖 SpeechAI Backend - Sistema de Llamadas Automatizadas
+
+**Sistema de gestión de llamadas automatizadas con IA, sistema de créditos, y soporte multi-país.**
+
+---
+
+## ✨ Características Principales
+
+- 🤖 **Retell AI**: Llamadas automatizadas con IA conversacional
+- 📊 **Sistema de Créditos**: Gestión de balance por minutos o créditos
+- 🌍 **Multi-País**: Soporte para Chile y Argentina con normalización automática
+- 📞 **Múltiples Números**: Sistema de fallback con hasta 3 números por contacto
+- 🔄 **Reintentos Inteligentes**: Lógica configurable de reintentos por batch
+- 📈 **Reportes Detallados**: Excel, terminal, y visualizaciones en tiempo real
+- ⚙️ **Call Settings**: Configuración de horarios y reintentos por campaña
+- 🏗️ **Clean Architecture**: DDD + servicios + infraestructura
+
+---
+
+## 🎯 Refactoring Reciente (Octubre 2025)
+
+### 1. **Eliminación de Duplicados en Jobs** (43% de reducción)
+Antes los jobs tenían datos duplicados en raíz y objetos anidados:
+```python
+# ❌ Antes: ~2.3 KB por job
+{
+  "nombre": "Juan",           # Duplicado
+  "rut": "12345678-9",        # Duplicado
+  "monto_total": 100000,      # Duplicado
+  "contact": {
+    "nombre": "Juan",         # Duplicado
+    "rut": "12345678-9",      # Duplicado
+  },
+  "payload": {
+    "monto_total": "100000"   # Duplicado
+  }
+}
+
+# ✅ Ahora: ~1.3 KB por job (43% más pequeño)
+{
+  "to_number": "+56912345678",  # ← NUEVO: para routing
+  "contact": {
+    "nombre": "Juan",
+    "rut": "12345678-9"
+  },
+  "payload": {
+    "monto_total": "100000"
+  }
+}
+```
+
+**Beneficios:**
+- ✅ **43% menos espacio** en MongoDB
+- ✅ **Retrocompatible** con helper `get_job_field()`
+- ✅ **Sin cambios** en el worker
+
+### 2. **Sistema call_settings por Batch**
+Cada campaña puede tener su propia configuración:
+```python
+{
+  "call_settings": {
+    "max_attempts": 5,                    # Reintentos
+    "retry_delay_hours": 12,              # Horas entre reintentos
+    "allowed_hours": {                    # Horarios permitidos
+      "start": "09:00",
+      "end": "20:00"
+    },
+    "days_of_week": [1,2,3,4,5],         # Lunes a viernes
+    "timezone": "America/Santiago",       # Zona horaria
+    "max_concurrent_calls": 10            # Llamadas concurrentes
+  }
+}
+```
+
+**Beneficios:**
+- ✅ **Flexibilidad por campaña**: Cobranza urgente vs marketing
+- ✅ **Respeta horarios**: No llama fuera del rango permitido
+- ✅ **Retrocompatible**: Batches sin settings usan defaults de Account
+
+---
+
+## ✅ **Integraciones**
 - 🤖 **Retell AI**: Cliente completo para llamadas automatizadas
 - 🗄️ **MongoDB**: Base de datos principal con Motor (async)
 - 📊 **Excel**: Carga masiva de contactos desde archivos Excel
 - 🌐 **FastAPI**: API REST moderna y rápida
-- 📈 **Google Sheets**: Integración para reportes (opcional)
+- 📈 **Reportes**: Excel, terminal, y markdown
 
 ---
 
@@ -14,27 +95,55 @@
 ```
 📂 app/
 ├── 🏛️ domain/              # Entidades y reglas de negocio
-│   ├── models.py           # JobModel, BatchModel, ContactInfo
-│   ├── enums.py            # Estados y tipos del sistema
-│   └── use_cases/          # Casos de uso específicos
+│   ├── models.py           # JobModel, BatchModel, AccountModel, ContactInfo
+│   ├── enums.py            # JobStatus, AccountStatus, PlanType
+│   └── use_cases/          # Procesadores específicos por caso de uso
+│       ├── debt_collection_processor.py   # Cobranza
+│       └── marketing_processor.py         # Marketing/Adquisición
+│
 ├── 🚀 services/            # Lógica de aplicación
-│   ├── batch_service.py    # Gestión de lotes
-│   ├── job_service.py      # Gestión de trabajos
-│   ├── call_service.py     # Orquestación de llamadas
-│   └── worker_service.py   # Coordinación de workers
-├── 🏗️ infrastructure/      # Capa de persistencia
-│   ├── database_manager.py # MongoDB async
+│   ├── account_service.py       # Gestión de cuentas y créditos
+│   ├── batch_service.py         # Gestión de lotes/campañas
+│   ├── batch_creation_service.py # Creación de batches desde Excel
+│   ├── chile_batch_service.py   # Procesamiento específico Chile
+│   ├── argentina_batch_service.py # Procesamiento específico Argentina
+│   ├── job_service.py           # Gestión de trabajos individuales
+│   └── transaction_service.py   # Gestión de transacciones
+│
+├── 🏗️ infrastructure/      # Capa de persistencia e integraciones
+│   ├── database_manager.py # MongoDB async con Motor
 │   └── retell_client.py    # Cliente Retell AI
-├── 🌐 api.py              # Controllers REST
-└── ⚙️ config/              # Configuración centralizada
-    └── settings.py         # Settings del sistema
+│
+├── 🛠️ utils/               # Utilidades y helpers
+│   ├── excel_processor.py       # Procesamiento Excel por país
+│   ├── universal_excel_processor.py # Preview Excel genérico
+│   ├── jobs_report_generator.py # Generación de reportes
+│   ├── generate_excel_report.py # Export a Excel
+│   ├── timezone_utils.py        # Manejo de zonas horarias
+│   └── helpers.py              # Utilidades generales
+│
+├── 📜 scripts/             # Scripts de desarrollo y mantenimiento
+│   ├── create_indexes.py        # Creación de índices MongoDB
+│   ├── reset_job.py            # Reinicio de trabajos
+│   ├── test_api_endpoints.py   # Tests de API
+│   ├── test_call_settings.py   # Tests de configuración
+│   └── test_refactoring.py     # Tests de helper functions
+│
+├── ⚙️ config/              # Configuración
+│   └── settings.py         # Settings centralizados
+│
+├── 🌐 api.py              # Controllers REST (FastAPI)
+├── 🔧 call_worker.py      # Worker de procesamiento de llamadas
+├── 🚀 run_api.py          # Servidor FastAPI
+└── 📋 requirements.txt     # Dependencias
 ```
 
 ### 🔄 **Flujo de Procesamiento**
 
 ```
-Excel Upload → Batch Creation → Job Generation → Worker Pool → 
-Retell AI Call → Status Polling → Result Storage → Retry Logic
+1. Upload Excel → 2. Batch Creation → 3. Job Generation → 
+4. Worker Claim → 5. Retell AI Call → 6. Status Polling → 
+7. Result Storage → 8. Retry Logic (si es necesario)
 ```
 
 ### 🎛️ **Estados del Sistema**
@@ -42,10 +151,10 @@ Retell AI Call → Status Polling → Result Storage → Retry Logic
 | Estado | Descripción | Acción |
 |--------|-------------|--------|
 | `pending` | Listo para procesar | Worker disponible lo toma |
-| `in_progress` | Worker procesando | Esperando resultado |
-| `done` | Completado exitosamente | Fin del flujo |
-| `failed` | Falló definitivamente | No más reintentos |
-| `suspended` | Pausado (sin créditos) | Esperar reactivación |
+| `in_progress` | Worker procesando | Esperando resultado de llamada |
+| `done` | Completado exitosamente | Llamada exitosa, fin del flujo |
+| `failed` | Falló después de max_attempts | No más reintentos |
+| `cancelled` | Cancelado manualmente | No se procesará |
 
 ## 📁 Estructura del Proyecto
 

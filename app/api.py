@@ -75,6 +75,7 @@ class ExcelBatchRequest(BaseModel):
     batch_name: Optional[str] = None
     batch_description: Optional[str] = None
     allow_duplicates: bool = False
+    call_settings: Optional[Dict[str, Any]] = None  # Configuración de llamadas
 
 class UpdateBatchRequest(BaseModel):
     """Request para actualizar un batch"""
@@ -82,6 +83,7 @@ class UpdateBatchRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     priority: Optional[int] = None
+    call_settings: Optional[Dict[str, Any]] = None  # Configuración de llamadas
 
 # ============================================================================
 # CONFIGURACIÓN Y STARTUP
@@ -315,30 +317,7 @@ async def get_account_stats(
     
     return stats
 
-@app.put("/api/v1/accounts/{account_id}/suspend")
-async def suspend_account(
-    account_id: str,
-    reason: str = "",
-    service: AccountService = Depends(get_account_service)
-):
-    """Suspender una cuenta"""
-    success = await service.suspend_account(account_id, reason)
-    if not success:
-        raise HTTPException(status_code=404, detail="Account not found")
-    
-    return {"success": True, "message": "Account suspended"}
-
-@app.put("/api/v1/accounts/{account_id}/activate")
-async def activate_account(
-    account_id: str,
-    service: AccountService = Depends(get_account_service)
-):
-    """Activar una cuenta suspendida"""
-    success = await service.activate_account(account_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Account not found")
-    
-    return {"success": True, "message": "Account activated"}
+# DEPRECATED: Accounts now use PATCH /api/v1/accounts/{account_id} with {"status": "suspended"/"active"} instead
 
 @app.get("/api/v1/accounts/{account_id}/last-call-settings")
 async def get_last_call_settings(
@@ -541,29 +520,7 @@ async def upload_jobs_to_batch(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing CSV: {str(e)}")
 
-@app.put("/api/v1/batches/{batch_id}/pause")
-async def pause_batch(
-    batch_id: str,
-    service: BatchService = Depends(get_batch_service)
-):
-    """Pausar un batch"""
-    success = await service.pause_batch(batch_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Batch not found")
-    
-    return {"success": True, "message": "Batch paused"}
-
-@app.put("/api/v1/batches/{batch_id}/resume")
-async def resume_batch(
-    batch_id: str,
-    service: BatchService = Depends(get_batch_service)
-):
-    """Reanudar un batch pausado"""
-    success = await service.resume_batch(batch_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Batch not found")
-    
-    return {"success": True, "message": "Batch resumed"}
+# DEPRECATED: Use PATCH /api/v1/batches/{batch_id} with {"is_active": false/true} instead
 
 @app.post("/api/v1/batches/{batch_id}/cancel")
 async def cancel_batch(
@@ -615,6 +572,8 @@ async def update_batch(
         update_data["description"] = request.description
     if request.priority is not None:
         update_data["priority"] = request.priority
+    if request.call_settings is not None:
+        update_data["call_settings"] = request.call_settings
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -880,7 +839,7 @@ async def retry_job(
     
     return {"success": True, "message": "Job marked for retry"}
 
-@app.delete("/api/v1/jobs/{job_id}")
+@app.put("/api/v1/jobs/{job_id}/cancel")
 async def cancel_job(
     job_id: str,
     service: JobService = Depends(get_job_service)

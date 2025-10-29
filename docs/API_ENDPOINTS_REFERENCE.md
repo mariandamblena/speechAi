@@ -345,12 +345,51 @@
   "name": "Campaña Octubre",               // REQUIRED
   "description": "Cobranza mes octubre",   // OPTIONAL (default: "")
   "priority": 1,                           // OPTIONAL (default: 1)
-  "call_settings": {                       // OPTIONAL
-    "max_call_duration": 300,              // Segundos (default: 300)
-    "ring_timeout": 30,                    // Segundos (default: 30)
-    "max_attempts": 3,                     // Reintentos (default: 3)
-    "retry_delay_hours": 24,               // Horas entre reintentos (default: 24)
-    "allowed_hours": {
+  "call_settings": {                       // OPTIONAL - Configuración específica del batch
+    "max_attempts": 5,                     // Reintentos (default: 3)
+    "retry_delay_hours": 12,               // Horas entre reintentos (default: 24)
+    "allowed_hours": {                     // Horario permitido
+      "start": "09:00",                    // Hora inicio (HH:MM)
+      "end": "20:00"                       // Hora fin (HH:MM)
+    },
+    "days_of_week": [1, 2, 3, 4, 5],      // Días permitidos (1=Lun, 7=Dom)
+    "timezone": "America/Santiago",         // Zona horaria
+    "max_concurrent_calls": 10             // Llamadas concurrentes
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "batch": {
+    "_id": "...",
+    "batch_id": "batch-2025-10-28-143000-abc123",
+    "account_id": "acc-a1b2c3d4e5f6",
+    "name": "Campaña Octubre",
+    "description": "Cobranza mes octubre",
+    "priority": 1,
+    "is_active": true,
+    "call_settings": {
+      "max_attempts": 5,
+      "retry_delay_hours": 12,
+      "allowed_hours": {"start": "09:00", "end": "20:00"},
+      "days_of_week": [1, 2, 3, 4, 5],
+      "timezone": "America/Santiago",
+      "max_concurrent_calls": 10
+    },
+    "created_at": "2025-10-28T14:30:00",
+    "total_jobs": 0
+  }
+}
+```
+
+**Notas:**
+- ✅ `batch_id` se genera automáticamente con timestamp
+- ✅ `call_settings` es opcional - si no se proporciona, usa defaults de la cuenta
+- ✅ El worker respeta `call_settings` al procesar jobs
+- ⚠️ Si un batch no tiene `call_settings`, usa la configuración de la cuenta (Account)
       "start": "09:00",
       "end": "18:00"
     },
@@ -385,6 +424,59 @@
 - ✅ `batch_id` se genera automáticamente
 - ✅ `call_settings` es completamente opcional (usa defaults del worker si no se envía)
 - ⚠️ NO incluir `script_content`, `voice_settings`, `schedule_type` (no se usan actualmente)
+
+---
+
+### `PATCH /api/v1/batches/{batch_id}`
+**Descripción:** Actualizar propiedades de un batch (pausar/reanudar, cambiar configuración, etc.)
+
+**Path Parameters:**
+- `batch_id` (string) - ID del batch
+
+**Request Body:**
+```json
+{
+  "is_active": false,                    // OPTIONAL - Pausar (false) o reanudar (true)
+  "name": "Nuevo nombre",                // OPTIONAL - Cambiar nombre
+  "description": "Nueva descripción",    // OPTIONAL - Cambiar descripción
+  "priority": 2,                         // OPTIONAL - Cambiar prioridad
+  "call_settings": {                     // OPTIONAL - Actualizar configuración
+    "max_attempts": 5,
+    "retry_delay_hours": 12
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Batch paused",
+  "batch_id": "batch-20251024-a1b2c3d4",
+  "updated_fields": ["is_active"]
+}
+```
+
+**Ejemplos:**
+```bash
+# Pausar batch
+curl -X PATCH "http://localhost:8000/api/v1/batches/batch-123" \
+  -d '{"is_active": false}'
+
+# Reanudar y cambiar prioridad
+curl -X PATCH "http://localhost:8000/api/v1/batches/batch-123" \
+  -d '{"is_active": true, "priority": 2}'
+```
+
+---
+
+### ⚠️ DEPRECATED: `PUT /api/v1/batches/{batch_id}/pause`
+**Estado:** Deprecado - usar `PATCH /api/v1/batches/{batch_id}` con `{"is_active": false}`
+
+---
+
+### ⚠️ DEPRECATED: `PUT /api/v1/batches/{batch_id}/resume`
+**Estado:** Deprecado - usar `PATCH /api/v1/batches/{batch_id}` con `{"is_active": true}`
 
 ---
 

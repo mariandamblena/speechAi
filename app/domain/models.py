@@ -144,6 +144,10 @@ class JobModel:
     call_result: Optional[Dict[str, Any]] = None
     last_error: Optional[str] = None
     
+    # Compromiso de pago (capturado por Retell AI)
+    fecha_pago_cliente: Optional[str] = None  # Fecha comprometida por el cliente (YYYY-MM-DD)
+    monto_pago_cliente: Optional[Any] = None  # Monto comprometido (puede ser int, float o string)
+    
     def generate_deduplication_key(self) -> str:
         """Genera clave única para evitar duplicados"""
         if not self.contact:
@@ -242,7 +246,7 @@ class JobModel:
         optional_fields = [
             "job_id", "reserved_until", "worker_id", "estimated_cost", "reserved_amount",
             "created_at", "started_at", "completed_at", "failed_at", "updated_at", 
-            "call_id", "call_result", "last_error"
+            "call_id", "call_result", "last_error", "fecha_pago_cliente", "monto_pago_cliente"
         ]
         
         for field_name in optional_fields:
@@ -299,7 +303,9 @@ class JobModel:
             updated_at=data.get("updated_at"),
             call_id=data.get("call_id"),
             call_result=data.get("call_result"),
-            last_error=data.get("last_error")
+            last_error=data.get("last_error"),
+            fecha_pago_cliente=data.get("fecha_pago_cliente"),
+            monto_pago_cliente=data.get("monto_pago_cliente")
         )
 
 

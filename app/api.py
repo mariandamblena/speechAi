@@ -75,6 +75,7 @@ class ExcelBatchRequest(BaseModel):
     batch_name: Optional[str] = None
     batch_description: Optional[str] = None
     allow_duplicates: bool = False
+    call_settings: Optional[Dict[str, Any]] = None  # Configuración de llamadas
 
 class UpdateBatchRequest(BaseModel):
     """Request para actualizar un batch"""
@@ -82,6 +83,7 @@ class UpdateBatchRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     priority: Optional[int] = None
+    call_settings: Optional[Dict[str, Any]] = None  # Configuración de llamadas
 
 # ============================================================================
 # CONFIGURACIÓN Y STARTUP
@@ -615,6 +617,8 @@ async def update_batch(
         update_data["description"] = request.description
     if request.priority is not None:
         update_data["priority"] = request.priority
+    if request.call_settings is not None:
+        update_data["call_settings"] = request.call_settings
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")

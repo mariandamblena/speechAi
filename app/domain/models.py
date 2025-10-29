@@ -265,6 +265,9 @@ class JobModel:
                 "phones": self.contact.phones,
                 "next_phone_index": self.contact.next_phone_index,
             }
+            # to_number se mantiene en root para routing rápido
+            if self.contact.phones and len(self.contact.phones) > 0:
+                data["to_number"] = self.contact.phones[self.contact.next_phone_index]
             
         if self.payload:
             data["payload"] = {

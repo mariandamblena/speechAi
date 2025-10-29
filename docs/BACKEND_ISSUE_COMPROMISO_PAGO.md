@@ -17,9 +17,32 @@ Los campos `fecha_pago_cliente` y `monto_pago_cliente` **ahora SÍ se devuelven 
 
 ---
 
-## 2. 🟡 IMPORTANTE: Configuración de Llamadas No Expuesta en API
+## 2. ✅ RESUELTO: Configuración de Llamadas No Expuesta en API
 
-### 📋 Descripción del Problema
+### � Estado: FUNCIONA CORRECTAMENTE ✅
+
+**Resuelto el 28 de octubre de 2025:**
+
+El campo `call_settings` ahora está completamente expuesto y funcional en la API.
+
+**Verificado:**
+- ✅ GET /api/v1/batches/{batch_id} devuelve call_settings
+- ✅ PATCH /api/v1/batches/{batch_id} acepta y actualiza call_settings
+- ✅ POST /api/v1/batches/excel/create acepta call_settings_json
+- ✅ Worker respeta todas las configuraciones (max_attempts, retry_delay_hours, allowed_hours, days_of_week, timezone)
+- ✅ Tests automatizados pasando 100% (test_call_settings.py)
+
+**Documentación completa:**
+- docs/CALL_SETTINGS_IMPLEMENTATION_PLAN.md - Análisis y plan de implementación
+- docs/CALL_SETTINGS_COMPLETED.md - Resumen de implementación y resultados
+
+**Issue CERRADO** - El backend ahora expone completamente call_settings.
+
+---
+
+## 2. 🟢 DEPRECATED - Ver sección anterior
+
+### 📋 Descripción del Problema (RESUELTO)
 
 El campo `call_settings` **nunca es devuelto por la API** ni puede ser configurado. Esto impide que el frontend pueda visualizar y editar la configuración de las llamadas de una campaña.
 
@@ -172,14 +195,14 @@ Por ahora, el frontend:
 | # | Issue | Severidad | Estado |
 |---|-------|-----------|--------|
 | 1 | Campos de compromiso de pago | ✅ RESUELTO | Funcionando correctamente |
-| 2 | Configuración de llamadas no expuesta (`call_settings`) | 🟡 IMPORTANTE | Pendiente |
+| 2 | Configuración de llamadas (`call_settings`) | ✅ RESUELTO | Completamente funcional |
 
 ---
 
 **Última actualización**: 28 de octubre de 2025  
 **Responsable**: Backend Team
 
-**Issues Cerrados**: 1 de 2 (50%)  
-**Issues Pendientes**: 1 de 2 (50%)
+**Issues Cerrados**: 2 de 2 (100%) ✅  
+**Issues Pendientes**: 0 de 2 (0%)
 
-**Nota**: El Issue #2 se enfoca solo en `call_settings`. Los campos `voice_settings` y `script_content` no se implementarán por ahora en el frontend.
+**Nota**: Todos los issues han sido resueltos exitosamente.

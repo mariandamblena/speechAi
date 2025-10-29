@@ -8,6 +8,10 @@ from pymongo import MongoClient
 from bson import ObjectId
 from dotenv import load_dotenv
 
+# Add parent directory to path to import from domain
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from domain.models import get_job_field
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -28,8 +32,8 @@ def reset_job(job_id_str: str):
             print(f"❌ Job {job_id_str} no encontrado")
             return False
             
-        print(f"📋 Job encontrado: {job.get('rut')} - {job.get('nombre')}")
-        print(f"📞 Teléfono: {job.get('to_number')}")
+        print(f"📋 Job encontrado: {get_job_field(job, 'rut')} - {get_job_field(job, 'nombre')}")
+        print(f"📞 Teléfono: {get_job_field(job, 'to_number')}")
         print(f"📊 Status actual: {job.get('status')}")
         
         # Resetear job

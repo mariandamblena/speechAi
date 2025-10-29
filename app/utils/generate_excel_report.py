@@ -4,11 +4,18 @@ Extrae datos de MongoDB y genera archivo Excel con múltiples hojas
 """
 
 import os
+import sys
 import pandas as pd
 from datetime import datetime, timezone
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from collections import Counter
+
+# Agregar path del proyecto para imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Importar helper para acceso a campos de job
+from domain.models import get_job_field
 
 load_dotenv()
 
@@ -139,9 +146,9 @@ def create_successful_jobs_sheet(jobs, writer):
         
         successful_data.append({
             'ID': str(job.get('_id', '')),
-            'Nombre': job.get('nombre', 'N/A'),
+            'Nombre': get_job_field(job, 'nombre') or 'N/A',
             'RUT/DNI': contact.get('dni', 'N/A'),
-            'Teléfono': job.get('to_number', 'N/A'),
+            'Teléfono': get_job_field(job, 'to_number') or 'N/A',
             'Intentos': job.get('attempts', 0),
             'Estado Llamada': call_result.get('call_status', 'N/A'),
             'Duración (seg)': call_result.get('duration_ms', 0) / 1000 if call_result.get('duration_ms') else 0,
@@ -174,9 +181,9 @@ def create_failed_jobs_sheet(jobs, writer):
         
         failed_data.append({
             'ID': str(job.get('_id', '')),
-            'Nombre': job.get('nombre', 'N/A'),
+            'Nombre': get_job_field(job, 'nombre') or 'N/A',
             'RUT/DNI': contact.get('dni', 'N/A'),
-            'Teléfono': job.get('to_number', 'N/A'),
+            'Teléfono': get_job_field(job, 'to_number') or 'N/A',
             'Intentos': job.get('attempts', 0),
             'Intentos Máximos': job.get('max_attempts', 3),
             'Último Error': job.get('last_error', 'N/A'),
@@ -289,9 +296,9 @@ def create_complete_data_sheet(jobs, writer):
         complete_data.append({
             'ID': str(job.get('_id', '')),
             'Estado': job.get('status', 'N/A'),
-            'Nombre': job.get('nombre', 'N/A'),
+            'Nombre': get_job_field(job, 'nombre') or 'N/A',
             'RUT/DNI': contact.get('dni', 'N/A'),
-            'Teléfono Principal': job.get('to_number', 'N/A'),
+            'Teléfono Principal': get_job_field(job, 'to_number') or 'N/A',
             'Teléfonos Disponibles': str(contact.get('phones', [])),
             'Índice Teléfono Actual': contact.get('next_phone_index', 0),
             'Intentos': job.get('attempts', 0),

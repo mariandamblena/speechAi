@@ -15,6 +15,9 @@ import argparse
 # Agregar path del proyecto para imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Importar helper para acceso a campos de job
+from domain.models import get_job_field
+
 load_dotenv()
 
 class JobsReportGenerator:
@@ -80,8 +83,8 @@ class JobsReportGenerator:
         if successful_jobs:
             print(f"\n✅ JOBS EXITOSOS ({len(successful_jobs)}):")
             for job in successful_jobs:
-                name = job.get('nombre', 'N/A')[:40]
-                phone = job.get('to_number', 'N/A')
+                name = str(get_job_field(job, 'nombre') or 'N/A')[:40]
+                phone = get_job_field(job, 'to_number') or 'N/A'
                 attempts = job.get('attempts', 0)
                 print(f"   👤 {name}... - 📞 {phone} - 🔄 {attempts} intentos")
         
@@ -90,8 +93,8 @@ class JobsReportGenerator:
         if failed_jobs:
             print(f"\n❌ JOBS FALLIDOS ({len(failed_jobs)}):")
             for job in failed_jobs[:5]:  # Solo mostrar primeros 5
-                name = job.get('nombre', 'N/A')[:40]
-                phone = job.get('to_number', 'N/A')
+                name = str(get_job_field(job, 'nombre') or 'N/A')[:40]
+                phone = get_job_field(job, 'to_number') or 'N/A'
                 attempts = job.get('attempts', 0)
                 error = job.get('last_error', 'N/A')[:30]
                 print(f"   👤 {name}... - 📞 {phone} - 🔄 {attempts}/{self.max_tries} - ❌ {error}...")
@@ -127,8 +130,8 @@ class JobsReportGenerator:
                 f.write("| Nombre | Teléfono | Intentos | Estado Llamada |\n")
                 f.write("|--------|----------|----------|----------------|\n")
                 for job in successful_jobs:
-                    name = job.get('nombre', 'N/A')[:30]
-                    phone = job.get('to_number', 'N/A')
+                    name = str(get_job_field(job, 'nombre') or 'N/A')[:30]
+                    phone = get_job_field(job, 'to_number') or 'N/A'
                     attempts = job.get('attempts', 0)
                     call_status = job.get('call_result', {}).get('call_status', 'N/A')
                     f.write(f"| {name} | {phone} | {attempts} | {call_status} |\n")
@@ -140,8 +143,8 @@ class JobsReportGenerator:
                 f.write("| Nombre | Teléfono | Intentos | Último Error |\n")
                 f.write("|--------|----------|----------|---------------|\n")
                 for job in failed_jobs:
-                    name = job.get('nombre', 'N/A')[:30]
-                    phone = job.get('to_number', 'N/A')
+                    name = str(get_job_field(job, 'nombre') or 'N/A')[:30]
+                    phone = get_job_field(job, 'to_number') or 'N/A'
                     attempts = job.get('attempts', 0)
                     error = job.get('last_error', 'N/A')[:50]
                     f.write(f"| {name} | {phone} | {attempts} | {error} |\n")
@@ -234,9 +237,9 @@ class JobsReportGenerator:
             contact = job.get('contact', {})
             
             successful_data.append({
-                'Nombre': job.get('nombre', 'N/A'),
+                'Nombre': get_job_field(job, 'nombre') or 'N/A',
                 'DNI': contact.get('dni', 'N/A'),
-                'Teléfono': job.get('to_number', 'N/A'),
+                'Teléfono': get_job_field(job, 'to_number') or 'N/A',
                 'Intentos': job.get('attempts', 0),
                 'Estado Llamada': call_result.get('call_status', 'N/A'),
                 'Call ID': call_result.get('call_id', 'N/A'),
@@ -262,9 +265,9 @@ class JobsReportGenerator:
             contact = job.get('contact', {})
             
             failed_data.append({
-                'Nombre': job.get('nombre', 'N/A'),
+                'Nombre': get_job_field(job, 'nombre') or 'N/A',
                 'DNI': contact.get('dni', 'N/A'),
-                'Teléfono': job.get('to_number', 'N/A'),
+                'Teléfono': get_job_field(job, 'to_number') or 'N/A',
                 'Intentos': job.get('attempts', 0),
                 'Último Error': job.get('last_error', 'N/A'),
                 'Próximo Intento': self._format_date(job.get('next_try_at')),
@@ -287,9 +290,9 @@ class JobsReportGenerator:
             complete_data.append({
                 'ID': str(job.get('_id', '')),
                 'Estado': job.get('status', 'N/A'),
-                'Nombre': job.get('nombre', 'N/A'),
+                'Nombre': get_job_field(job, 'nombre') or 'N/A',
                 'DNI': contact.get('dni', 'N/A'),
-                'Teléfono': job.get('to_number', 'N/A'),
+                'Teléfono': get_job_field(job, 'to_number') or 'N/A',
                 'Intentos': job.get('attempts', 0),
                 'Último Error': job.get('last_error', 'N/A'),
                 'Call ID': call_result.get('call_id', 'N/A'),

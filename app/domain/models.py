@@ -107,6 +107,65 @@ class CallPayload(BasePayload):
                 return iso_date  # Fallback: retornar fecha original
 
 
+def get_job_field(job: Dict[str, Any], field: str) -> Any:
+    """
+    Helper para obtener campos de un job con fallback a estructura anidada.
+    Permite compatibilidad entre jobs antiguos (campos en raíz) y nuevos (estructura anidada).
+    
+    Args:
+        job: Diccionario del job desde MongoDB
+        field: Nombre del campo a obtener
+        
+    Returns:
+        Valor del campo o None si no existe
+    """
+    # Intentar primero en raíz (compatibilidad con jobs viejos)
+    if field in job:
+        return job[field]
+    
+    # Mapeo de campos planos a estructura anidada
+    contact_fields = {
+        "nombre": ("contact", "name"),
+        "rut": ("contact", "dni"),
+        "rut_fmt": ("contact", "dni"),
+        "to_number": ("contact", "phones", 0)  # Primera posición del array
+    }
+    
+    payload_fields = {
+        "monto_total": ("payload", "debt_amount"),
+        "deuda": ("payload", "debt_amount"),
+        "fecha_limite": ("payload", "due_date"),
+        "origen_empresa": ("payload", "company_name"),
+        "cantidad_cupones": ("payload", "additional_info", "cantidad_cupones"),
+        "fecha_maxima": ("payload", "additional_info", "fecha_maxima")
+    }
+    
+    # Buscar en contact
+    if field in contact_fields:
+        path = contact_fields[field]
+        value = job
+        for key in path:
+            if isinstance(key, int):  # Índice de array
+                value = value[key] if isinstance(value, list) and len(value) > key else None
+            else:
+                value = value.get(key, {}) if isinstance(value, dict) else None
+            if value is None:
+                return None
+        return value
+    
+    # Buscar en payload
+    if field in payload_fields:
+        path = payload_fields[field]
+        value = job
+        for key in path:
+            value = value.get(key, {}) if isinstance(value, dict) else None
+            if value is None:
+                return None
+        return value
+    
+    return None
+
+
 @dataclass
 class JobModel:
     """Modelo principal de un job de llamada"""
@@ -207,15 +266,6 @@ class JobModel:
                 "next_phone_index": self.contact.next_phone_index,
             }
             
-            # Extraer campos de contacto al nivel raíz para compatibilidad
-            data["nombre"] = self.contact.name
-            data["rut"] = self.contact.dni
-            data["to_number"] = self.contact.current_phone
-            
-            # Formatear RUT si es válido
-            if self.contact.dni:
-                data["rut_fmt"] = self.contact.dni
-            
         if self.payload:
             data["payload"] = {
                 "debt_amount": self.payload.debt_amount,
@@ -224,23 +274,6 @@ class JobModel:
                 "reference_number": self.payload.reference_number,
                 "additional_info": self.payload.additional_info,
             }
-            
-            # Extraer campos importantes al nivel raíz para compatibilidad con call_worker
-            if hasattr(self.payload, 'debt_amount'):
-                data["monto_total"] = self.payload.debt_amount
-                data["deuda"] = self.payload.debt_amount
-            
-            if hasattr(self.payload, 'due_date'):
-                data["fecha_limite"] = self.payload.due_date
-            
-            if hasattr(self.payload, 'company_name'):
-                data["origen_empresa"] = self.payload.company_name
-            
-            # Extraer campos del additional_info al nivel raíz
-            if self.payload.additional_info:
-                for key, value in self.payload.additional_info.items():
-                    if key in ['cantidad_cupones', 'fecha_maxima', 'rut', 'batch_origen']:
-                        data[key] = value
         
         # Campos opcionales
         optional_fields = [

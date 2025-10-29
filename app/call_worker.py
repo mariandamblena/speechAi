@@ -13,6 +13,9 @@ from typing import Optional, Dict, Any, List
 import requests
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import PyMongoError
+
+# Importar helper para acceso a campos de job
+from domain.models import get_job_field
 from tenacity import retry, wait_exponential_jitter, stop_after_attempt
 from dotenv import load_dotenv
 
@@ -922,14 +925,14 @@ class CallOrchestrator:
         
         # Fallback: Lógica legacy para jobs antiguos
         ctx = {
-            "nombre": str(job.get("nombre", "")),
-            "empresa": str(job.get("origen_empresa", "")),
-            "RUT": str(job.get("rut_fmt") or job.get("rut", "")),
-            "cantidad_cupones": str(job.get("cantidad_cupones", "")),
-            "cuotas_adeudadas": str(job.get("cantidad_cupones", "")),
-            "monto_total": str(job.get("monto_total", "")),
-            "fecha_limite": str(job.get("fecha_limite", "")),
-            "fecha_maxima": str(job.get("fecha_maxima", "")),
+            "nombre": str(get_job_field(job, "nombre") or ""),
+            "empresa": str(get_job_field(job, "origen_empresa") or ""),
+            "RUT": str(get_job_field(job, "rut_fmt") or get_job_field(job, "rut") or ""),
+            "cantidad_cupones": str(get_job_field(job, "cantidad_cupones") or ""),
+            "cuotas_adeudadas": str(get_job_field(job, "cantidad_cupones") or ""),
+            "monto_total": str(get_job_field(job, "monto_total") or ""),
+            "fecha_limite": str(get_job_field(job, "fecha_limite") or ""),
+            "fecha_maxima": str(get_job_field(job, "fecha_maxima") or ""),
             "fecha_pago_cliente": "",
             "current_time_America_Santiago": now_chile,
         }
@@ -1071,7 +1074,7 @@ class CallOrchestrator:
         context = self._context_from_job(job)
         print(f"[DEBUG] [{job_id}] Context enviado a Retell: {context}")
         
-        logging.info(f"[{job_id}] Llamando a {phone} (RUT: {job.get('rut')}, Nombre: {job.get('nombre')}) - agent_id={RETELL_AGENT_ID}")
+        logging.info(f"[{job_id}] Llamando a {phone} (RUT: {get_job_field(job, 'rut')}, Nombre: {get_job_field(job, 'nombre')}) - agent_id={RETELL_AGENT_ID}")
         self.job_store.extend_lease(job_id)
 
         # Inicia la llamada con Retell
